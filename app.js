@@ -5,7 +5,7 @@ require("dotenv").config();
 const { Pool } = require("pg");
 
 const pool = new Pool({
-  ssl: { rejectUnauthorized: false }, 
+  ssl: { rejectUnauthorized: false },
 });
 
 const resolveExpiredClaims = require("./jobs/resolveClaims");
@@ -23,24 +23,16 @@ const allowedOrigins = [
 // CORS configuration
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (e.g., from Postman)
     if (!origin) return callback(null, true);
-
-    // Check if the incoming origin is in the allowed origins list
     if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-
-    // Reject the request if the origin is not allowed
     callback(new Error(`CORS policy: Origin ${origin} not allowed`));
   },
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization"],
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 }));
-
-// Pre-flight support for complex requests
-app.options("*", cors());
 
 // Body parsing
 app.use(express.json({ limit: "50mb" }));
