@@ -10,6 +10,16 @@ const app = express();
 
 app.get("/", (req, res) => res.send("🤖 Backend is online"));
 
+app.get('/health-db', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT NOW()');
+    res.json({ dbTime: result.rows[0].now });
+  } catch (err) {
+    console.error('DB health check failed:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.use(cors({
   origin: process.env.FRONTEND_URL || "http://localhost:3000",
   credentials: true,
