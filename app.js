@@ -1,45 +1,60 @@
 const express = require("express");
 const cors = require("cors");
-const cron = require('node-cron');
+const cron = require("node-cron");
 require("dotenv").config();
-const { Pool } = require('pg');
+const { Pool } = require("pg");
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },  // needed when connected to Neon or Render
+  ssl: { rejectUnauthorized: false }, 
 });
 
-const resolveExpiredClaims = require('./jobs/resolveClaims');
+const resolveExpiredClaims = require("./jobs/resolveClaims");
 const indexRouter = require("./routes/indexRouter");
 
 const app = express();
 
-app.get("/", (req, res) => res.send("🤖 Backend is online"));
+// Define allowed origins
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  process.env.FRONTEND_URL, // Production domain from environment variable
+].filter(Boolean); // Remove any falsy values
 
-app.get('/health-db', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT NOW()');
-    res.json({ dbTime: result.rows[0].now });
-  } catch (err) {
-    console.error('DB health check failed:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
+// CORS configuration
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g., from Postman)
+    if (!origin) return callback(null, true);
+
+    // Check if the incoming origin is in the allowed origins list
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // Reject the request if the origin is not allowed
+    callback(new Error(`CORS policy: Origin ${origin} not allowed`));
+  },
   credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 }));
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Pre-flight support for complex requests
+app.options("*", cors());
 
+// Body parsing
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
+// Main API routes
 app.use("/", indexRouter);
 
-cron.schedule('*/5 * * * *', async () => {
-  console.log('Checking for expired claims...');
+// Periodic background job
+cron.schedule("*/5 * * * *", async () => {
+  console.log("Checking for expired claims...");
   await resolveExpiredClaims();
 });
 
+// Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
