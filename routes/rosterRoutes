@@ -1,0 +1,19 @@
+const express = require("express");
+const rosterController = require("../controllers/rosterController");
+const router = express.Router();
+
+// GET routes
+router.get("/roster/all", rosterController.getAllRosters);
+router.get("/roster/has-regular/:teamId", rosterController.checkForRegular);
+router.get("/roster/:teamId/:week", rosterController.getRoster);
+router.get("/rostersForTheWeek/:week", rosterController.findRostersForTheWeek);
+
+// POST routes
+router.post("/generate-roster", rosterController.generateRoster);
+router.post("/multiple-rosters", rosterController.changeMultipleRosters);
+router.post("/reset-positions", rosterController.resetPosition);
+router.post("/reset-rosters", rosterController.resetRoster);
+router.post("/roster", rosterController.changeRoster);
+router.post("/roster/regular", rosterController.setPositions);
+
+module.exports = router;

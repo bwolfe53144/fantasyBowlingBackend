@@ -1,0 +1,11 @@
+<header>
+    <div>
+        <button onclick="location.href='/'" type="button">Home</button>
+        <% if (locals.user) {%>
+            <button onclick="location.href='/user/logout'" type="button">Log Out</button>
+            <% } else { %>
+        <button onclick="location.href='/user/login'" type="button">Log In</button>
+        <button onclick="location.href='/user/signup'" type="button">Sign Up</button>
+        <% } %>
+    </div>
+</header>

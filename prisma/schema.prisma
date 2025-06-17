@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String     @id @default(uuid())
+  firstname       String
+  lastname        String
+  username        String     @unique
+  email           String?    
+  emailSubscribed Boolean?   @default(false)
+  password        String
+  color           String?
+  role            UserRole   @default(NEW)
+  team           Team?
+  messages        Message[]  @relation("UserMessages")
+  comments        Comment[]  
+  claimants       Claimant[] @relation("UserClaimants")
+  starred         StarredMessage[]
+
+  avatarUrl       String?    
+
+  @@unique([firstname, lastname])
+}
+
+model Team {
+  id       String   @id @default(uuid())
+  name     String   @unique
+  ownerId  String?  @unique
+  players  Player[] 
+  owner    User?    @relation(fields: [ownerId], references: [id])
+
+  team1Matches Match[] @relation("Team1Matches")
+  team2Matches Match[] @relation("Team2Matches")
+
+  rosters  Roster[] @relation("TeamRosters")
+  transactions PlayerTransaction[]
+
+  wins     Int      @default(0)
+  losses   Int      @default(0)
+  ties     Int      @default(0)
+  points   Int      @default(0)
+  pointsAgainst Int @default(0)
+  streak   String   @default("W0") 
+  playoffSeed  Int? 
+  completedWeeks Int[] // Array to store week IDs that are completed
+}
+
+
+model Player {
+  id          String      @id @default(uuid())
+  name        String
+  league      String
+  position    String
+  setPosition String      @default("")
+  teamId      String?
+  lyAverage   String?
+  lyGames     String?
+  lyPoints    String?
+  team        Team?       @relation(fields: [teamId], references: [id])
+  weekScores  WeekScore[]
+  rosters     Roster[]    @relation("PlayerRosters") 
+  claims      PlayerClaim[] @relation("PlayerClaims")
+  dropClaimants Claimant[] @relation("DropPlayer")
+  transactions PlayerTransaction[]
+
+
+  @@unique([name, league])
+}
+
+model Roster {
+  id        String   @id @default(uuid())
+  week      Int
+  position  String
+
+  playerId  String
+  player    Player   @relation("PlayerRosters", fields: [playerId], references: [id], onDelete: Cascade)
+
+  teamId    String
+  team      Team     @relation("TeamRosters", fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([week, playerId])
+}
+
+model WeekScore {
+  id        Int    @id @default(autoincrement())
+  week      Int
+  average   Int
+  game1     Int?
+  game2     Int?
+  game3     Int?
+  player    Player @relation(fields: [playerId], references: [id])
+  playerId  String
+  myTeam    String
+  opponent  String
+  lanes     String
+
+  @@unique([playerId, week])
+}
+
+model PlayerTransaction {
+  id         String   @id @default(uuid())
+  action     String   // "add" or "drop"
+  playerId   String
+  playerName String
+  teamId     String
+  teamName   String
+  timestamp  DateTime @default(now())
+
+  player     Player   @relation(fields: [playerId], references: [id])
+  team       Team     @relation(fields: [teamId], references: [id])
+}
+
+model Message {
+  id         Int       @id @default(autoincrement())
+  title      String
+  content    String
+  createdAt  DateTime  @default(now())
+  author     User      @relation("UserMessages", fields: [authorId], references: [id])
+  authorId   String
+  comments   Comment[]
+  leagueOnly Boolean   @default(false)
+
+  starredBy  StarredMessage[] // Link to users who starred this message
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id])
+  messageId Int
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+}
+
+model StarredMessage {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  message   Message  @relation(fields: [messageId], references: [id])
+  messageId Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, messageId]) // Ensure a user can't star the same message twice
+}
+
+model Match {
+  id          String   @id @default(uuid())
+  week        Int
+  season      Int 
+  team1Id     String
+  team2Id     String
+  matchType   String?  // e.g. "championship", "third_place", "semifinal", etc.
+
+  team1       Team     @relation("Team1Matches", fields: [team1Id], references: [id])
+  team2       Team     @relation("Team2Matches", fields: [team2Id], references: [id])
+
+  @@index([week, season])
+}
+
+model WeekLock {
+  id         String   @id @default(uuid())
+  league     String   
+  season     Int
+  week       Int
+  completed  String @default("no")
+  lockTime   DateTime
+
+  @@unique([league, season, week])
+}
+
+model PlayerClaim {
+  id         String     @id @default(uuid())
+  playerId   String
+  player     Player     @relation("PlayerClaims", fields: [playerId], references: [id])  // Make sure this is here
+  createdAt  DateTime   @default(now())
+  resolved   Boolean    @default(false)
+  expiresAt  DateTime   // For the expiration time
+  claimants  Claimant[] @relation("ClaimantsOnPlayerClaim") 
+
+}
+
+model Claimant {
+  id         String     @id @default(uuid())
+  userId     String
+  user       User       @relation("UserClaimants", fields: [userId], references: [id])
+
+  claimId    String
+  claim      PlayerClaim @relation("ClaimantsOnPlayerClaim", fields: [claimId], references: [id]) 
+
+  dropPlayerId String?  // Store the player that needs to be dropped
+  dropPlayer   Player?  @relation("DropPlayer", fields: [dropPlayerId], references: [id])  // Correct the relation name and ensure correct `references` field
+
+  @@unique([userId, claimId])
+}
+
+enum UserRole {
+  SUPERADMIN
+  ADMIN
+  MANAGER
+  MEMBER
+  NEW
+}
