@@ -16,7 +16,7 @@ router.get("/api/match/:id", miscController.getMatchups);
 router.get("/api/matches/recent/:teamName/:week", miscController.getRecentMatches);
 router.get("/api/transactions/recent", miscController.getTransactions);
 router.get("/get-all-lock-statuses", miscController.getAllLockStatuses);
-router.get("/schedule", miscController.getSchedule);
+router.get("/api/schedule", miscController.getSchedule);
 router.get("/totalLeagues", miscController.getAllLeagues);
 
 // PATCH routes
