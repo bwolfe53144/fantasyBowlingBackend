@@ -72,16 +72,18 @@ async function createRosterEntry({ week, teamId, playerId, position }) {
 }
 
 async function upsertRosterEntries(entries) {
-  const operations = entries.map(({ week, playerId, teamId, position }) =>
-    prisma.roster.upsert({
-      where: {
-        week_playerId: { week, playerId },
-      },
-      update: { position },
-      create: { week, playerId, teamId, position },
-    })
-  );
-  return prisma.$transaction(operations);
+  const batchSize = 10;
+  for (let i = 0; i < entries.length; i += batchSize) {
+    const batch = entries.slice(i, i + batchSize);
+    const operations = batch.map(({ week, playerId, teamId, position }) =>
+      prisma.roster.upsert({
+        where: { week_playerId: { week, playerId } },
+        update: { position },
+        create: { week, playerId, teamId, position },
+      })
+    );
+    await prisma.$transaction(operations);
+  }
 }
 
 async function deleteRosterByTeamAndWeek(teamId, week) {
@@ -115,23 +117,41 @@ async function resetPlayerPositions() {
   });
 }
 
+async function limitConcurrency(tasks, limit) {
+  const results = [];
+  const executing = [];
+
+  for (const task of tasks) {
+    const p = Promise.resolve().then(() => task());
+    results.push(p);
+
+    if (limit <= tasks.length) {
+      const e = p.then(() => executing.splice(executing.indexOf(e), 1));
+      executing.push(e);
+      if (executing.length >= limit) {
+        await Promise.race(executing);
+      }
+    }
+  }
+  return Promise.all(results);
+}
+
 async function setPlayerPositions(teamId, players) {
   const { unlockedWeeks, lockedWeeks } = await getUnlockedWeeks();
-  const operations = [];
 
-  for (const player of players) {
-    operations.push(
-      prisma.player.update({
-        where: { id: player.playerId },
-        data: { setPosition: player.setPosition },
-      })
-    );
+  try {
+    const tasks = [];
 
-    if (unlockedWeeks.length > 0) {
+    for (const player of players) {
+      tasks.push(() =>
+        prisma.player.update({
+          where: { id: player.playerId },
+          data: { setPosition: player.setPosition },
+        })
+      );
+
       for (const unlockedWeek of unlockedWeeks) {
-        console.log(`Upserting roster for player ${player.playerId} for week ${unlockedWeek}`);
-
-        operations.push(
+        tasks.push(() =>
           prisma.roster.upsert({
             where: {
               week_playerId: {
@@ -150,10 +170,10 @@ async function setPlayerPositions(teamId, players) {
         );
       }
     }
-  }
 
-  try {
-    await Promise.all(operations);
+    // Limit concurrency to 4 simultaneous DB calls
+    await limitConcurrency(tasks, 4);
+
     console.log("All operations successful");
 
     return {
