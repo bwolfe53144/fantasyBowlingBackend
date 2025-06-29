@@ -2,6 +2,7 @@ require("dotenv").config();
 const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 const db = require("../db/authQueries");
@@ -160,9 +161,98 @@ async function getUser(req, res) {
   }
 }
 
+async function forgotPassword(req, res) {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: "Email is required." });
+  }
+
+  try {
+    const user = await db.getUserByEmail(email);
+
+    if (!user) {
+      // Avoid revealing if email exists
+      return res.status(200).json({ message: "If that email is in our system, we sent a reset link." });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+    const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+
+    await db.setResetToken(user.id, hashedToken, expires);
+
+    const resetURL = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    await sendPasswordResetEmail(user.email, resetURL);
+
+    return res.status(200).json({ message: "If that email is in our system, we sent a reset link." });
+  } catch (error) {
+    console.error("Error in forgotPassword:", error);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+}
+
+async function sendPasswordResetEmail(to, resetURL) {
+  const transporter = nodemailer.createTransport({
+    service: "yahoo", // or your provider
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.SMTP_USER,
+    to,
+    subject: "Password Reset Request",
+    html: `<p>You requested a password reset.</p>
+           <p>Click <a href="${resetURL}">here</a> to reset your password. This link expires in 1 hour.</p>`,
+  };
+
+  await transporter.sendMail(mailOptions);
+}
+
+async function resetPassword(req, res) {
+  const { token } = req.params;
+  const { password, confirmPassword } = req.body;
+
+  if (!password || !confirmPassword) {
+    return res.status(400).json({ error: "Password and confirm password are required." });
+  }
+
+  if (password !== confirmPassword) {
+    return res.status(400).json({ error: "Passwords do not match." });
+  }
+
+  try {
+    // Hash token to compare
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Find user by reset token and make sure not expired
+    const user = await db.getUserByResetToken(hashedToken);
+
+    if (!user || user.resetPasswordExpires < new Date()) {
+      return res.status(400).json({ error: "Token is invalid or has expired." });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Update user: set new password, clear token fields
+    await db.updatePasswordAndClearResetToken(user.id, hashedPassword);
+
+    res.status(200).json({ message: "Password has been reset successfully. You can now log in." });
+  } catch (error) {
+    console.error("Error in resetPassword:", error);
+    res.status(500).json({ error: "Internal server error." });
+  }
+}
+
 module.exports = {
   signup, 
   login, 
-  getUser, 
+  getUser,
+  forgotPassword, 
+  resetPassword,
 };
 

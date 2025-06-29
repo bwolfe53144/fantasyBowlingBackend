@@ -13,18 +13,20 @@ model User {
   firstname       String
   lastname        String
   username        String     @unique
-  email           String?    
+  email           String?    @unique
   emailSubscribed Boolean?   @default(false)
   password        String
   color           String?
   role            UserRole   @default(NEW)
-  team           Team?
+  team            Team?
   messages        Message[]  @relation("UserMessages")
   comments        Comment[]  
   claimants       Claimant[] @relation("UserClaimants")
   starred         StarredMessage[]
+  avatarUrl       String?
 
-  avatarUrl       String?    
+  resetPasswordToken   String? 
+  resetPasswordExpires DateTime?
 
   @@unique([firstname, lastname])
 }

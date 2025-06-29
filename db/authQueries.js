@@ -58,10 +58,50 @@ async function findUser(id) {
   });
 }
 
+async function getUserByEmail(email) {
+  return await prisma.user.findUnique({ where: { email } });
+}
+
+async function setResetToken(userId, hashedToken, expires) {
+  return await prisma.user.update({
+    where: { id: userId },
+    data: {
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: expires,
+    },
+  });
+}
+
+async function getUserByResetToken(hashedToken) {
+  return await prisma.user.findFirst({
+    where: {
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: {
+        gt: new Date(),
+      },
+    },
+  });
+}
+
+async function updatePasswordAndClearResetToken(userId, newHashedPassword) {
+  return await prisma.user.update({
+    where: { id: userId },
+    data: {
+      password: newHashedPassword,
+      resetPasswordToken: null,
+      resetPasswordExpires: null,
+    },
+  });
+}
+
 module.exports = {
   checkUsernameEmail,
   checkName,
   addUser,
   getUser,
   findUser,
+  getUserByEmail, 
+  setResetToken,
+  getUserByResetToken,
+  updatePasswordAndClearResetToken,
 };
