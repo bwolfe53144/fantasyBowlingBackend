@@ -9,23 +9,23 @@ datasource db {
 }
 
 model User {
-  id              String     @id @default(uuid())
-  firstname       String
-  lastname        String
-  username        String     @unique
-  email           String?    @unique
-  emailSubscribed Boolean?   @default(false)
-  password        String
-  color           String?
-  role            UserRole   @default(NEW)
-  team            Team?
-  messages        Message[]  @relation("UserMessages")
-  comments        Comment[]  
-  claimants       Claimant[] @relation("UserClaimants")
-  starred         StarredMessage[]
-  avatarUrl       String?
+  id                   String     @id @default(uuid())
+  firstname            String
+  lastname             String
+  username             String     @unique
+  email                String?    @unique
+  emailSubscribed      Boolean?   @default(false)
+  password             String
+  color                String?
+  role                 UserRole   @default(NEW)
+  team                 Team?
+  messages             Message[]  @relation("UserMessages")
+  comments             Comment[]
+  claimants            Claimant[] @relation("UserClaimants")
+  starred              StarredMessage[]
+  avatarUrl            String?
 
-  resetPasswordToken   String? 
+  resetPasswordToken   String?    @unique
   resetPasswordExpires DateTime?
 
   @@unique([firstname, lastname])
