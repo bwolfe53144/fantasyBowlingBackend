@@ -148,21 +148,19 @@ async function deleteMessageById(id) {
 }
 
 async function starMessageForAllUsers(messageId) {
-  // Get all user IDs
+  const numericMessageId = Number(messageId); // convert to int
+
   const users = await prisma.user.findMany({
     select: {
       id: true,
     },
   });
 
-  // Create StarredMessage entries for all users (bulk)
   const data = users.map((user) => ({
     userId: user.id,
-    messageId,
+    messageId: numericMessageId,
   }));
 
-  // You might want to first delete any existing duplicates (if not using @@unique)
-  // Then createMany
   await prisma.starredMessage.createMany({
     data,
     skipDuplicates: true,
