@@ -137,7 +137,7 @@ async function globalStarMessage(req, res) {
 
   try {
     // Call query function to mark message as starred for all
-    await starMessageForAllUsers(messageId);
+    await db.starMessageForAllUsers(messageId);
 
     res.status(200).json({ success: true, message: "Message starred for all users." });
   } catch (error) {
