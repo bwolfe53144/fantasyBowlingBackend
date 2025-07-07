@@ -132,6 +132,20 @@ async function deleteMessage(req, res) {
   }
 }
 
+async function globalStarMessage(req, res) {
+  const messageId = req.params.id;
+
+  try {
+    // Call query function to mark message as starred for all
+    await starMessageForAllUsers(messageId);
+
+    res.status(200).json({ success: true, message: "Message starred for all users." });
+  } catch (error) {
+    console.error("Error globally starring message:", error);
+    res.status(500).json({ error: "Failed to globally star message." });
+  }
+}
+
 module.exports = {
   getMessages, 
   viewMessage, 
@@ -139,5 +153,6 @@ module.exports = {
   postStarMessage, 
   getStarredMessages, 
   addComment, 
-  deleteMessage, 
+  deleteMessage,
+  globalStarMessage, 
 };

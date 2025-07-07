@@ -9,6 +9,7 @@ router.get("/messages/:id", messageController.viewMessage);
 
 // POST routes
 router.post("/add-comment", messageController.addComment);
+router.post("/api/messages/:id/global-star", messageController.globalStarMessage);
 router.post("/messages", messageController.postMessage);
 router.post("/star-message/:messageId", messageController.postStarMessage);
 
