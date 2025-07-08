@@ -11,7 +11,7 @@ datasource db {
 model User {
   id                   String     @id @default(uuid())
   firstname            String
-  lastname             String
+  lastname            String
   username             String     @unique
   email                String?    @unique
   emailSubscribed      Boolean?   @default(false)
@@ -24,6 +24,8 @@ model User {
   claimants            Claimant[] @relation("UserClaimants")
   starred              StarredMessage[]
   avatarUrl            String?
+
+  survivorEntries      SurvivorEntry[]
 
   resetPasswordToken   String?    @unique
   resetPasswordExpires DateTime?
@@ -51,9 +53,8 @@ model Team {
   pointsAgainst Int @default(0)
   streak   String   @default("W0") 
   playoffSeed  Int? 
-  completedWeeks Int[] // Array to store week IDs that are completed
+  completedWeeks Int[]
 }
-
 
 model Player {
   id          String      @id @default(uuid())
@@ -72,6 +73,8 @@ model Player {
   dropClaimants Claimant[] @relation("DropPlayer")
   transactions PlayerTransaction[]
 
+  survivorPicks SurvivorPlayer[]
+  survivorUsages SurvivorUsedPlayer[]
 
   @@unique([name, league])
 }
@@ -108,7 +111,7 @@ model WeekScore {
 
 model PlayerTransaction {
   id         String   @id @default(uuid())
-  action     String   // "add" or "drop"
+  action     String
   playerId   String
   playerName String
   teamId     String
@@ -129,7 +132,7 @@ model Message {
   comments   Comment[]
   leagueOnly Boolean   @default(false)
 
-  starredBy  StarredMessage[] // Link to users who starred this message
+  starredBy  StarredMessage[]
 }
 
 model Comment {
@@ -150,7 +153,7 @@ model StarredMessage {
   messageId Int
   createdAt DateTime @default(now())
 
-  @@unique([userId, messageId]) // Ensure a user can't star the same message twice
+  @@unique([userId, messageId])
 }
 
 model Match {
@@ -159,7 +162,7 @@ model Match {
   season      Int 
   team1Id     String
   team2Id     String
-  matchType   String?  // e.g. "championship", "third_place", "semifinal", etc.
+  matchType   String?
 
   team1       Team     @relation("Team1Matches", fields: [team1Id], references: [id])
   team2       Team     @relation("Team2Matches", fields: [team2Id], references: [id])
@@ -181,26 +184,66 @@ model WeekLock {
 model PlayerClaim {
   id         String     @id @default(uuid())
   playerId   String
-  player     Player     @relation("PlayerClaims", fields: [playerId], references: [id])  // Make sure this is here
+  player     Player     @relation("PlayerClaims", fields: [playerId], references: [id])
   createdAt  DateTime   @default(now())
   resolved   Boolean    @default(false)
-  expiresAt  DateTime   // For the expiration time
-  claimants  Claimant[] @relation("ClaimantsOnPlayerClaim") 
-
+  expiresAt  DateTime
+  claimants  Claimant[] @relation("ClaimantsOnPlayerClaim")
 }
 
 model Claimant {
-  id         String     @id @default(uuid())
-  userId     String
-  user       User       @relation("UserClaimants", fields: [userId], references: [id])
-
-  claimId    String
-  claim      PlayerClaim @relation("ClaimantsOnPlayerClaim", fields: [claimId], references: [id]) 
-
-  dropPlayerId String?  // Store the player that needs to be dropped
-  dropPlayer   Player?  @relation("DropPlayer", fields: [dropPlayerId], references: [id])  // Correct the relation name and ensure correct `references` field
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation("UserClaimants", fields: [userId], references: [id])
+  claimId      String
+  claim        PlayerClaim @relation("ClaimantsOnPlayerClaim", fields: [claimId], references: [id])
+  dropPlayerId String?
+  dropPlayer   Player?    @relation("DropPlayer", fields: [dropPlayerId], references: [id])
 
   @@unique([userId, claimId])
+}
+
+model SurvivorEntry {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  league      String   // e.g., "Sunday AM"
+  eliminated  Boolean  @default(false)
+
+  teamName    String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  survivorPlayers SurvivorPlayer[]
+  usedPlayers     SurvivorUsedPlayer[]
+}
+
+model SurvivorPlayer {
+  id         String   @id @default(uuid())
+  entryId    String
+  entry      SurvivorEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  playerId   String
+  player     Player   @relation(fields: [playerId], references: [id])
+  rank       Int
+
+  createdAt  DateTime @default(now())
+
+  @@unique([entryId, playerId])
+  @@unique([entryId, rank])
+}
+
+model SurvivorUsedPlayer {
+  id         String   @id @default(uuid())
+  entryId    String
+  entry      SurvivorEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  week       Int
+  playerId   String
+  player     Player   @relation(fields: [playerId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([entryId, week])
 }
 
 enum UserRole {
