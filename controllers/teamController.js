@@ -136,6 +136,6 @@ async function createTeam(req, res) {
     updateTeam, 
     getTeamPlayers, 
     getFantasyTeamPlayers, 
-    checkLockStatus, 
+    checkLockStatus,
   };
 
