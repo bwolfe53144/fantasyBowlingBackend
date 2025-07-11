@@ -1,32 +1,5 @@
 const db = require("../db/claimQueries");
 
-async function claimPlayer(req, res) {
-  console.log("claimplayer")
-  const { playerId, userId } = req.body;
-
-  if (!playerId || !userId) {
-    return res.status(400).json({ error: "Missing playerId or userId" });
-  }
-
-  try {
-
-    if (!claim) {
-      claim = await db.createNewClaim(playerId, userId);
-    } else {
-      const alreadyClaimed = claim.claimants.some(c => c.userId === userId);
-      if (!alreadyClaimed) {
-        await db.addClaimantToPlayerClaim(claim.id, userId);
-      }
-      claim = await db.getPlayerClaim(playerId);
-    }
-
-    return res.status(200).json({ success: true, claim });
-  } catch (error) {
-    console.error("Error claiming player:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
-  }
-}
-
 async function pickDropPlayer(req, res) {
     const { claimPlayerId, dropPlayerId, userId } = req.body;
   

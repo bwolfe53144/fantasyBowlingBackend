@@ -34,14 +34,6 @@ async function findOrCreatePlayerClaim(playerId) {
 }
 
 // Claimant related functions 
-async function addClaimantToPlayerClaim(claimId, userId) {
-    return await prisma.claimant.create({
-      data: {
-        user: { connect: { id: userId } },
-        claim: { connect: { id: claimId } },
-      },
-    });
-  }
 
 async function findClaimant(userId, claimId) {
   return await prisma.claimant.findUnique({
@@ -127,7 +119,6 @@ async function getClaimsByUserId(userId) {
 module.exports = {
   getPlayerClaim,
   findOrCreatePlayerClaim,
-  addClaimantToPlayerClaim,
   findClaimant,
   createClaimant,
   deleteClaimants,
