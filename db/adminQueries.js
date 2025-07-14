@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const playerDb = require("./playerQueries");
+const rosterDB = require("./rosterQueries");
 const { calculateFantasyPoints } = require("../utils/calculateFantasyPoints");
 
 const prisma = new PrismaClient();
@@ -114,6 +115,7 @@ async function clearAllPlayerTeams() {
     }
   
     await prisma.match.deleteMany({ where: { season } });
+    await rosterDB.resetTeamStats();
   
     const playoffWeeks = new Set([weeks - 2, weeks - 1, weeks]);
     const roundRobinWeeks = generateRoundRobinWeeks(teams);
@@ -169,6 +171,20 @@ async function clearAllPlayerTeams() {
   }
   
   async function setWeekLockTimes(lockTimes) {
+    const leaguesToReset = Array.from(new Set(lockTimes.map(entry => entry.league)));
+  
+    // Reset completed = "no" for all weeks in selected leagues and season
+    await prisma.weekLock.updateMany({
+      where: {
+        league: { in: leaguesToReset },
+        season: lockTimes[0].season, // assuming all entries have same season (as in your payload)
+      },
+      data: {
+        completed: "no",
+      },
+    });
+  
+    // Now update or create each week lock entry
     const upserts = lockTimes.map((entry) =>
       prisma.weekLock.upsert({
         where: {
@@ -180,18 +196,20 @@ async function clearAllPlayerTeams() {
         },
         update: {
           lockTime: new Date(entry.lockTime),
+          completed: "no", // explicitly set it again in case
         },
         create: {
           league: entry.league,
           season: entry.season,
           week: entry.week,
           lockTime: new Date(entry.lockTime),
+          completed: "no",
         },
       })
     );
   
     await Promise.all(upserts);
-    return { message: "Selected lock times saved successfully." };
+    return { message: "Selected lock times saved and completed flags reset successfully." };
   }
   
   // Claims & Transactions
