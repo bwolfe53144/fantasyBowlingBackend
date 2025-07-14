@@ -8,6 +8,7 @@ const miscRoutes = require("./miscRoutes");
 const playerRoutes = require("./playerRoutes");
 const playoffRoutes = require("./playoffRoutes")
 const rosterRoutes = require("./rosterRoutes");
+const survivorRoutes = require("./survivorRoutes");
 const teamRoutes = require("./teamRoutes");
 const weekRoutes = require("./weekRoutes");
 
@@ -21,6 +22,7 @@ router.use(miscRoutes);
 router.use(playerRoutes);
 router.use(playoffRoutes);
 router.use(rosterRoutes);
+router.use(survivorRoutes);
 router.use(teamRoutes);
 router.use(weekRoutes);
 

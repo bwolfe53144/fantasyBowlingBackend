@@ -8,6 +8,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+const lockSurvivorLineups = require("./jobs/lockSurvivorLineups.js");
 const resolveExpiredClaims = require("./jobs/resolveClaims");
 const indexRouter = require("./routes/indexRouter");
 
@@ -41,6 +42,14 @@ app.use("/", indexRouter);
 
 cron.schedule("*/5 * * * *", async () => {
   await resolveExpiredClaims();
+});
+
+cron.schedule('1 18 * * *', async () => {
+  await lockSurvivorLineups();
+});
+
+cron.schedule('1 19 * * *', async () => {
+  await lockSurvivorLineups();
 });
 
 const PORT = process.env.PORT || 5000;

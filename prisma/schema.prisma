@@ -73,8 +73,9 @@ model Player {
   dropClaimants Claimant[] @relation("DropPlayer")
   transactions PlayerTransaction[]
 
-  survivorPicks SurvivorPlayer[]
-  survivorUsages SurvivorUsedPlayer[]
+  survivorPicks   SurvivorPlayer[]
+  survivorUsages  SurvivorUsedPlayer[]
+  weekLineups     SurvivorWeekLineup[] 
 
   @@unique([name, league])
 }
@@ -204,20 +205,24 @@ model Claimant {
 }
 
 model SurvivorEntry {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
 
-  league      String   // e.g., "Sunday AM"
-  eliminated  Boolean  @default(false)
-
-  teamName    String
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  league          String
+  eliminated      Boolean  @default(false)
+  eliminatedWeek  Int?
+  teamName        String
+  winnerStatus    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   survivorPlayers SurvivorPlayer[]
   usedPlayers     SurvivorUsedPlayer[]
+  weekLineups     SurvivorWeekLineup[]  
+
+  @@unique([league, teamName])
+  @@unique([userId, league])
 }
 
 model SurvivorPlayer {
@@ -244,6 +249,19 @@ model SurvivorUsedPlayer {
   createdAt  DateTime @default(now())
 
   @@unique([entryId, week])
+}
+
+model SurvivorWeekLineup {
+  id         String   @id @default(uuid())
+  entryId    String
+  entry      SurvivorEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  week       Int
+  playerId   String
+  player     Player   @relation(fields: [playerId], references: [id])
+  rank       Int
+  createdAt  DateTime @default(now())
+
+  @@unique([entryId, week, playerId])
 }
 
 enum UserRole {
