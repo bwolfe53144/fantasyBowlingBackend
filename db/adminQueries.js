@@ -169,8 +169,6 @@ async function clearAllPlayerTeams() {
   }
   
   async function setWeekLockTimes(lockTimes) {
-    await prisma.weekLock.deleteMany();
-  
     const upserts = lockTimes.map((entry) =>
       prisma.weekLock.upsert({
         where: {
@@ -193,7 +191,7 @@ async function clearAllPlayerTeams() {
     );
   
     await Promise.all(upserts);
-    return { message: "Lock times reset and saved successfully." };
+    return { message: "Selected lock times saved successfully." };
   }
   
   // Claims & Transactions
