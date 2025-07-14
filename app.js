@@ -40,7 +40,7 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use("/", indexRouter);
 
-cron.schedule("*/5 * * * *", async () => {
+cron.schedule("1 7 * * *", async () => {
   await resolveExpiredClaims();
 });
 

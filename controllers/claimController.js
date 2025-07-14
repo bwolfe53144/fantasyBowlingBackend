@@ -1,31 +1,60 @@
 const db = require("../db/claimQueries");
 
-async function pickDropPlayer(req, res) {
-    const { claimPlayerId, dropPlayerId, userId } = req.body;
-  
-    try {
-      const playerClaim = await db.findOrCreatePlayerClaim(claimPlayerId);
-  
-      const existingClaimant = await db.findClaimant(userId, playerClaim.id);
-  
-      if (existingClaimant) {
-        return res.status(400).json({ error: "You have already claimed this player." });
-      }
-  
-      await db.createClaimant(userId, playerClaim.id, dropPlayerId);
-  
-      res.status(200).json({ message: "Player claimed with drop selection!" });
-    } catch (err) {
-      console.error("pickDropPlayer error:", err);
-      res.status(500).json({ error: "Server error when processing claim." });
-    }
+function getExpiresAtAt7AM_Min48Hours(createdAt) {
+  const minExpires = new Date(createdAt.getTime() + 48 * 3600000); // add 48 hours
+  const expires = new Date(minExpires);
+
+  // Set time to 7:00 AM on that day
+  expires.setHours(7, 0, 0, 0);
+
+  // If setting to 7am made it earlier than minExpires, add 1 day
+  if (expires < minExpires) {
+    expires.setDate(expires.getDate() + 1);
   }
 
-async function viewAllClaims(req, res) {
+  return expires;
+}
+
+async function pickDropPlayer(req, res) {
+  const { claimPlayerId, dropPlayerId, userId } = req.body;
+
+  try {
+    const now = new Date();
+    const expiresAt = getExpiresAtAt7AM_Min48Hours(now);
+
+    // Pass playerId and expiresAt to findOrCreatePlayerClaim
+    const playerClaim = await db.findOrCreatePlayerClaim({
+      playerId: claimPlayerId,
+      expiresAt,
+    });
+
+    const existingClaimant = await db.findClaimant(userId, playerClaim.id);
+
+    if (existingClaimant) {
+      return res.status(400).json({ error: "You have already claimed this player." });
+    }
+
+    await db.createClaimant(userId, playerClaim.id, dropPlayerId);
+
+    res.status(200).json({ message: "Player claimed with drop selection!" });
+  } catch (err) {
+    console.error("pickDropPlayer error:", err);
+    res.status(500).json({ error: "Server error when processing claim." });
+  }
+}
+
+  function getTimeLeft(expiresAt) {
+    const now = new Date();
+    const diff = new Date(expiresAt) - now;
+    if (diff <= 0) return "Expired";
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    return `${hours}h ${minutes}m left`;
+  }
+  
+  async function viewAllClaims(req, res) {
     try {
       const allClaimedPlayers = await db.getAllClaims();
-  
-      const CLAIM_DURATION_HOURS = 48;
   
       const processedClaims = allClaimedPlayers.map((claim) => {
         const teams = claim.claimants
@@ -35,20 +64,13 @@ async function viewAllClaims(req, res) {
           }))
           .filter(t => t.id);
   
-        const createdAt = new Date(claim.createdAt);
-        const expiresAt = new Date(createdAt.getTime() + CLAIM_DURATION_HOURS * 3600000);
-        const now = new Date();
-        const diff = expiresAt - now;
-        const timeLeft = diff > 0
-          ? `${Math.floor(diff / 3600000)}h ${Math.floor((diff % 3600000) / 60000)}m left`
-          : "Expired";
-  
         return {
           playerName: claim.player.name,
           playerId: claim.player.id,
           league: claim.player.league,
           teams,
-          timeLeft,
+          expiresAt: claim.expiresAt.toISOString(),
+          timeLeft: getTimeLeft(claim.expiresAt),
         };
       });
   
@@ -58,16 +80,14 @@ async function viewAllClaims(req, res) {
       res.status(500).json({ error: "Internal Server Error" });
     }
   }
-
-async function viewMyClaims(req, res) {
+  
+  async function viewMyClaims(req, res) {
     try {
       if (!req.user || !req.user.id) {
         return res.status(401).json({ error: "Unauthorized: User not authenticated" });
       }
   
       const myClaimedPlayers = await db.getClaimsByUserId(req.user.id);
-  
-      const CLAIM_DURATION_HOURS = 48;
   
       const processedClaims = myClaimedPlayers.map((claim) => {
         const teams = claim.claimants
@@ -77,20 +97,13 @@ async function viewMyClaims(req, res) {
           }))
           .filter(t => t.id);
   
-        const createdAt = new Date(claim.createdAt);
-        const expiresAt = new Date(createdAt.getTime() + CLAIM_DURATION_HOURS * 3600000);
-        const now = new Date();
-        const diff = expiresAt - now;
-        const timeLeft = diff > 0
-          ? `${Math.floor(diff / 3600000)}h ${Math.floor((diff % 3600000) / 60000)}m left`
-          : "Expired";
-  
         return {
           playerName: claim.player.name,
           playerId: claim.player.id,
           league: claim.player.league,
           teams,
-          timeLeft,
+          expiresAt: claim.expiresAt.toISOString(),
+          timeLeft: getTimeLeft(claim.expiresAt),
         };
       });
   

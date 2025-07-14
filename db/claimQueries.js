@@ -19,14 +19,14 @@ async function getPlayerClaim(playerId) {
 }
 
 
-async function findOrCreatePlayerClaim(playerId) {
+async function findOrCreatePlayerClaim({ playerId, expiresAt }) {
   let playerClaim = await prisma.playerClaim.findFirst({ where: { playerId } });
 
   if (!playerClaim) {
     playerClaim = await prisma.playerClaim.create({
       data: {
         playerId,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h expiry for pickDropPlayer
+        expiresAt, // use passed expiresAt
       },
     });
   }
