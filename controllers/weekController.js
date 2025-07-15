@@ -27,11 +27,16 @@ async function findCurrentWeek(req, res) {
     const allWeekLocks = await db.findAllWeekLocksOrdered();
     const now = new Date();
 
+    const fantasyLeagues = ["Ren Faire", "Beavers Latestarters", "Cheris Night Out", "Andys Classic"];
+
+    // Group locks by week, filtering fantasy leagues
     const leaguesPerWeek = new Map();
     const weekCompletionMap = new Map();
 
     for (const entry of allWeekLocks) {
-      const { week, completed, lockTime } = entry;
+      const { week, completed, lockTime, league } = entry;
+      if (!fantasyLeagues.includes(league)) continue;
+
       if (!leaguesPerWeek.has(week)) leaguesPerWeek.set(week, []);
       leaguesPerWeek.get(week).push(entry);
 
@@ -40,12 +45,12 @@ async function findCurrentWeek(req, res) {
     }
 
     const allWeeks = [...leaguesPerWeek.keys()].sort((a, b) => a - b);
-    const totalWeeks = allWeeks.length;
 
+    // Determine current week based on lock times
     let currentWeek;
     for (const week of allWeeks) {
       const entries = leaguesPerWeek.get(week);
-      const lockedCount = entries.filter(e => e.lockTime <= now).length;
+      const lockedCount = entries.filter((e) => e.lockTime <= now).length;
       if (lockedCount < entries.length) {
         currentWeek = week;
         break;
@@ -53,14 +58,25 @@ async function findCurrentWeek(req, res) {
     }
     if (currentWeek === undefined) currentWeek = allWeeks[allWeeks.length - 1];
 
+    // Count completed weeks
     let completedWeeks = 0;
     for (const week of allWeeks) {
       const completions = weekCompletionMap.get(week);
-      if (completions.every(c => c !== "no")) completedWeeks++;
+      if (completions.every((c) => c !== "no")) completedWeeks++;
     }
 
+    // Use enhanced findMatchWeeks() for schedule weeks and playoff start
+    const { weeks: uniqueWeeks, playoffStartWeek } = await db.findMatchWeeks();
+
+    const minWeek = uniqueWeeks[0];
+    const maxWeek = uniqueWeeks[uniqueWeeks.length - 1];
+    const totalWeeks = playoffStartWeek + 3 - minWeek;
+
+    // Clamp currentWeek inside schedule range
+    currentWeek = Math.max(minWeek, Math.min(currentWeek, maxWeek));
+
     res.json({
-      firstWeek: allWeeks[0],
+      firstWeek: minWeek,
       currentWeek,
       totalWeeks,
       completedWeeks,
