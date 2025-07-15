@@ -125,10 +125,10 @@ async function createSurvivorTeam(req, res) {
   
     const leagueCutoffs = {
       "SundayAM": 0.4,
-      "Cheris Nite Out": 0.4,
-      "Ren Faire": 0.4,
-      "Beavers Latestarters": 0.4,
-      "Andys Classic": 0.4,
+      "Cheris Nite Out": 0.6,
+      "Ren Faire": 0.3,
+      "Beavers Latestarters": 0.3,
+      "Andys Classic": 0.25,
       "Heyden Classic": 0.4,
     };
   
