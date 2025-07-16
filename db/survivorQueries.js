@@ -18,6 +18,8 @@ async function findSurvivorEntriesByUserId(userId) {
       id: true,
       league: true,
       teamName: true,
+      eliminated: true,
+      winnerStatus: true,
     },
   });
 }
