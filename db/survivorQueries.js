@@ -18,9 +18,6 @@ async function findSurvivorEntriesByUserId(userId) {
       id: true,
       league: true,
       teamName: true,
-      eliminated: true,
-      eliminatedWeek: true,     
-      winnerStatus: true,       
     },
   });
 }
