@@ -12,7 +12,7 @@ async function createSurvivorTeamEntry(userId, league, teamName) {
 }
 
 async function findSurvivorEntriesByUserId(userId) {
-  return prisma.survivorEntry.findUnique({
+  return prisma.survivorEntry.findMany({
     where: { userId },
     select: {
       id: true,
