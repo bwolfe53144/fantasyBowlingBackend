@@ -9,103 +9,95 @@ datasource db {
 }
 
 model User {
-  id                   String     @id @default(uuid())
+  id                   String           @id @default(uuid())
   firstname            String
-  lastname            String
-  username             String     @unique
-  email                String?    @unique
-  emailSubscribed      Boolean?   @default(false)
+  lastname             String
+  username             String           @unique
+  email                String?          @unique
+  emailSubscribed      Boolean?         @default(false)
   password             String
   color                String?
-  role                 UserRole   @default(NEW)
-  team                 Team?
-  messages             Message[]  @relation("UserMessages")
-  comments             Comment[]
-  claimants            Claimant[] @relation("UserClaimants")
-  starred              StarredMessage[]
+  role                 UserRole         @default(NEW)
   avatarUrl            String?
-
-  survivorEntries      SurvivorEntry[]
-
-  resetPasswordToken   String?    @unique
   resetPasswordExpires DateTime?
+  resetPasswordToken   String?          @unique
+  claimants            Claimant[]       @relation("UserClaimants")
+  comments             Comment[]
+  messages             Message[]        @relation("UserMessages")
+  starred              StarredMessage[]
+  survivorEntries      SurvivorEntry[]
+  team                 Team?
 
   @@unique([firstname, lastname])
 }
 
 model Team {
-  id       String   @id @default(uuid())
-  name     String   @unique
-  ownerId  String?  @unique
-  players  Player[] 
-  owner    User?    @relation(fields: [ownerId], references: [id])
-
-  team1Matches Match[] @relation("Team1Matches")
-  team2Matches Match[] @relation("Team2Matches")
-
-  rosters  Roster[] @relation("TeamRosters")
-  transactions PlayerTransaction[]
-
-  wins     Int      @default(0)
-  losses   Int      @default(0)
-  ties     Int      @default(0)
-  points   Int      @default(0)
-  pointsAgainst Int @default(0)
-  streak   String   @default("W0") 
-  playoffSeed  Int? 
+  id             String              @id @default(uuid())
+  name           String              @unique
+  ownerId        String?             @unique
+  wins           Int                 @default(0)
+  losses         Int                 @default(0)
+  ties           Int                 @default(0)
+  points         Int                 @default(0)
+  pointsAgainst  Int                 @default(0)
+  streak         String              @default("W0")
+  playoffSeed    Int?
   completedWeeks Int[]
+  team1Matches   Match[]             @relation("Team1Matches")
+  team2Matches   Match[]             @relation("Team2Matches")
+  players        Player[]
+  transactions   PlayerTransaction[]
+  rosters        Roster[]            @relation("TeamRosters")
+  owner          User?               @relation(fields: [ownerId], references: [id])
 }
 
 model Player {
-  id          String      @id @default(uuid())
-  name        String
-  league      String
-  position    String
-  setPosition String      @default("")
-  teamId      String?
-  lyAverage   String?
-  lyGames     String?
-  lyPoints    String?
-  team        Team?       @relation(fields: [teamId], references: [id])
-  weekScores  WeekScore[]
-  rosters     Roster[]    @relation("PlayerRosters") 
-  claims      PlayerClaim[] @relation("PlayerClaims")
-  dropClaimants Claimant[] @relation("DropPlayer")
-  transactions PlayerTransaction[]
-
-  survivorPicks   SurvivorPlayer[]
-  survivorUsages  SurvivorUsedPlayer[]
-  weekLineups     SurvivorWeekLineup[] 
+  id             String               @id @default(uuid())
+  name           String
+  league         String
+  position       String
+  setPosition    String               @default("")
+  teamId         String?
+  lyAverage      String?
+  lyGames        String?
+  lyPoints       String?
+  dropClaimants  Claimant[]           @relation("DropPlayer")
+  team           Team?                @relation(fields: [teamId], references: [id])
+  claims         PlayerClaim[]        @relation("PlayerClaims")
+  transactions   PlayerTransaction[]
+  rosters        Roster[]             @relation("PlayerRosters")
+  survivorPicks  SurvivorPlayer[]
+  survivorUsages SurvivorUsedPlayer[]
+  weekLineups    SurvivorWeekLineup[]
+  weekScores     WeekScore[]
 
   @@unique([name, league])
 }
 
 model Roster {
-  id        String   @id @default(uuid())
-  week      Int
-  position  String
-
-  playerId  String
-  player    Player   @relation("PlayerRosters", fields: [playerId], references: [id], onDelete: Cascade)
-
-  teamId    String
-  team      Team     @relation("TeamRosters", fields: [teamId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  week     Int
+  position String
+  playerId String
+  teamId   String
+  player   Player @relation("PlayerRosters", fields: [playerId], references: [id], onDelete: Cascade)
+  team     Team   @relation("TeamRosters", fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([week, playerId])
 }
 
 model WeekScore {
-  id        Int    @id @default(autoincrement())
-  week      Int
-  average   Int
-  game1     Int?
-  game2     Int?
-  game3     Int?
-  player    Player @relation(fields: [playerId], references: [id])
-  playerId  String
-  myTeam    String
-  opponent  String
-  lanes     String
+  id       Int    @id @default(autoincrement())
+  week     Int
+  average  Int
+  game1    Int?
+  game2    Int?
+  game3    Int?
+  playerId String
+  myTeam   String
+  opponent String
+  lanes    String
+  player   Player @relation(fields: [playerId], references: [id])
 
   @@unique([playerId, week])
 }
@@ -118,21 +110,19 @@ model PlayerTransaction {
   teamId     String
   teamName   String
   timestamp  DateTime @default(now())
-
   player     Player   @relation(fields: [playerId], references: [id])
   team       Team     @relation(fields: [teamId], references: [id])
 }
 
 model Message {
-  id         Int       @id @default(autoincrement())
+  id         Int              @id @default(autoincrement())
   title      String
   content    String
-  createdAt  DateTime  @default(now())
-  author     User      @relation("UserMessages", fields: [authorId], references: [id])
+  createdAt  DateTime         @default(now())
   authorId   String
+  leagueOnly Boolean          @default(false)
   comments   Comment[]
-  leagueOnly Boolean   @default(false)
-
+  author     User             @relation("UserMessages", fields: [authorId], references: [id])
   starredBy  StarredMessage[]
 }
 
@@ -140,126 +130,122 @@ model Comment {
   id        Int      @id @default(autoincrement())
   content   String
   createdAt DateTime @default(now())
-  message   Message  @relation(fields: [messageId], references: [id])
   messageId Int
-  author    User     @relation(fields: [authorId], references: [id])
   authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  message   Message  @relation(fields: [messageId], references: [id])
 }
 
 model StarredMessage {
   id        Int      @id @default(autoincrement())
-  user      User     @relation(fields: [userId], references: [id])
   userId    String
-  message   Message  @relation(fields: [messageId], references: [id])
   messageId Int
   createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, messageId])
 }
 
 model Match {
-  id          String   @id @default(uuid())
-  week        Int
-  season      Int 
-  team1Id     String
-  team2Id     String
-  matchType   String?
-
-  team1       Team     @relation("Team1Matches", fields: [team1Id], references: [id])
-  team2       Team     @relation("Team2Matches", fields: [team2Id], references: [id])
+  id        String  @id @default(uuid())
+  week      Int
+  season    Int
+  team1Id   String
+  team2Id   String
+  matchType String?
+  team1     Team    @relation("Team1Matches", fields: [team1Id], references: [id])
+  team2     Team    @relation("Team2Matches", fields: [team2Id], references: [id])
 
   @@index([week, season])
 }
 
 model WeekLock {
-  id         String   @id @default(uuid())
-  league     String   
-  season     Int
-  week       Int
-  completed  String @default("no")
-  lockTime   DateTime
+  id        String   @id @default(uuid())
+  league    String
+  season    Int
+  week      Int
+  completed String   @default("no")
+  lockTime  DateTime
 
   @@unique([league, season, week])
 }
 
 model PlayerClaim {
-  id         String     @id @default(uuid())
-  playerId   String
-  player     Player     @relation("PlayerClaims", fields: [playerId], references: [id])
-  createdAt  DateTime   @default(now())
-  resolved   Boolean    @default(false)
-  expiresAt  DateTime
-  claimants  Claimant[] @relation("ClaimantsOnPlayerClaim")
+  id        String     @id @default(uuid())
+  playerId  String
+  createdAt DateTime   @default(now())
+  resolved  Boolean    @default(false)
+  expiresAt DateTime
+  claimants Claimant[] @relation("ClaimantsOnPlayerClaim")
+  player    Player     @relation("PlayerClaims", fields: [playerId], references: [id])
 }
 
 model Claimant {
-  id           String     @id @default(uuid())
+  id           String      @id @default(uuid())
   userId       String
-  user         User       @relation("UserClaimants", fields: [userId], references: [id])
   claimId      String
-  claim        PlayerClaim @relation("ClaimantsOnPlayerClaim", fields: [claimId], references: [id])
   dropPlayerId String?
-  dropPlayer   Player?    @relation("DropPlayer", fields: [dropPlayerId], references: [id])
+  claim        PlayerClaim @relation("ClaimantsOnPlayerClaim", fields: [claimId], references: [id])
+  dropPlayer   Player?     @relation("DropPlayer", fields: [dropPlayerId], references: [id])
+  user         User        @relation("UserClaimants", fields: [userId], references: [id])
 
   @@unique([userId, claimId])
 }
 
 model SurvivorEntry {
-  id              String   @id @default(uuid())
+  id              String               @id @default(uuid())
   userId          String
-  user            User     @relation(fields: [userId], references: [id])
-
   league          String
-  eliminated      Boolean  @default(false)
-  eliminatedWeek  Int?
+  eliminated      Boolean              @default(false)
+  createdAt       DateTime             @default(now())
   teamName        String
+  updatedAt       DateTime             @updatedAt
+  eliminatedWeek  Int?
   winnerStatus    String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
+  user            User                 @relation(fields: [userId], references: [id])
   survivorPlayers SurvivorPlayer[]
   usedPlayers     SurvivorUsedPlayer[]
-  weekLineups     SurvivorWeekLineup[]  
+  weekLineups     SurvivorWeekLineup[]
 
   @@unique([league, teamName])
   @@unique([userId, league])
 }
 
 model SurvivorPlayer {
-  id         String   @id @default(uuid())
-  entryId    String
-  entry      SurvivorEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  playerId   String
-  player     Player   @relation(fields: [playerId], references: [id])
-  rank       Int
-
-  createdAt  DateTime @default(now())
+  id        String        @id @default(uuid())
+  entryId   String
+  playerId  String
+  rank      Int
+  createdAt DateTime      @default(now())
+  entry     SurvivorEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  player    Player        @relation(fields: [playerId], references: [id])
 
   @@unique([entryId, playerId])
   @@unique([entryId, rank])
 }
 
 model SurvivorUsedPlayer {
-  id         String   @id @default(uuid())
-  entryId    String
-  entry      SurvivorEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  week       Int
-  playerId   String
-  player     Player   @relation(fields: [playerId], references: [id])
-  createdAt  DateTime @default(now())
+  id        String        @id @default(uuid())
+  entryId   String
+  week      Int
+  playerId  String
+  createdAt DateTime      @default(now())
+  entry     SurvivorEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  player    Player        @relation(fields: [playerId], references: [id])
 
   @@unique([entryId, week])
 }
 
 model SurvivorWeekLineup {
-  id         String   @id @default(uuid())
-  entryId    String
-  entry      SurvivorEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  week       Int
-  playerId   String
-  player     Player   @relation(fields: [playerId], references: [id])
-  rank       Int
-  createdAt  DateTime @default(now())
+  id        String        @id @default(uuid())
+  entryId   String
+  week      Int
+  playerId  String
+  rank      Int
+  createdAt DateTime      @default(now())
+  entry     SurvivorEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  player    Player        @relation(fields: [playerId], references: [id])
 
   @@unique([entryId, week, playerId])
 }
