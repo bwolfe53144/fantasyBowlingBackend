@@ -207,8 +207,14 @@ async function getTeams() {
   async function getTeamRanks(teamName, league) {
     return prisma.bowlingTeam.findFirst({
       where: {
-        name: teamName,
-        league: league,
+        name: {
+          equals: teamName,
+          mode: "insensitive",
+        },
+        league: {
+          equals: league,
+          mode: "insensitive",
+        },
       },
       include: {
         rank: true,
