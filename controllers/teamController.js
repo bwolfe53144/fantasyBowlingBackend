@@ -128,7 +128,8 @@ async function createTeam(req, res) {
   }
 
   async function getTeamRanks(req, res) {
-    const { league, teamName } = req.params;
+    const league = decodeURIComponent(req.params.league);
+    const teamName = decodeURIComponent(req.params.teamName);
   
     try {
       const team = await db.getTeamRanks(teamName, league);
@@ -137,7 +138,7 @@ async function createTeam(req, res) {
         return res.status(404).json({ error: "Team not found" });
       }
   
-      res.json({ rank: team.rank });
+      res.json(team);  // send full team including ranks if needed
     } catch (error) {
       console.error("Error fetching team ranks:", error);
       res.status(500).json({ error: "Failed to fetch team ranks" });
