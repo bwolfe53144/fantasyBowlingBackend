@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const { calculateFantasyPoints } = require("../utils/calculateFantasyPoints");
 require('dotenv').config();
 
 const prisma = new PrismaClient();
@@ -15,8 +16,329 @@ async function findIncompleteWeekLocks() {
   });
 }
 
+async function updatePlayerRanks(league) {
+  const players = await prisma.player.findMany({
+    where: { league },
+    include: { weekScores: true },
+  });
+
+  if (players.length === 0) return;
+
+  const maxGames = Math.max(...players.map(p =>
+    p.weekScores.reduce((sum, ws) => {
+      const games = [ws.game1, ws.game2, ws.game3].filter(g => g != null).length;
+      return sum + games;
+    }, 0)
+  ));
+
+  const playerStats = players.map((player) => {
+    const ws = player.weekScores;
+    const gamesPlayed = ws.reduce((sum, score) =>
+      sum + [score.game1, score.game2, score.game3].filter(g => g != null).length, 0);
+
+    const pinfall = ws.reduce((sum, score) =>
+      sum + [score.game1, score.game2, score.game3].reduce((a, b) => (b ? a + b : a), 0), 0);
+
+    const seriesHigh = ws.reduce((max, score) => {
+      const series = [score.game1, score.game2, score.game3].reduce((a, b) => (b ? a + b : a), 0);
+      return series > max ? series : max;
+    }, 0);
+
+    const fanPoints = calculateFantasyPoints(ws);
+
+    const eligibleForAverage = gamesPlayed >= (maxGames * 2 / 3);
+    const avg = eligibleForAverage && gamesPlayed > 0 ? pinfall / gamesPlayed : 0;
+    const fanPPG = eligibleForAverage && gamesPlayed > 0 ? fanPoints / gamesPlayed : 0;
+
+    return {
+      playerId: player.id,
+      avg,
+      fanPoints,
+      fanPPG,
+      series: seriesHigh,
+      pinfall,
+      gamesPlayed,
+    };
+  });
+
+  function rankPlayers(statName, desc = true) {
+    const sorted = [...playerStats].sort((a, b) => {
+      if (a[statName] === b[statName]) return 0;
+      return desc ? b[statName] - a[statName] : a[statName] - b[statName];
+    });
+
+    const ranks = {};
+    const percents = {};
+    let rank = 1;
+    let prevValue = null;
+    let itemsWithSameRank = 0;
+
+    // Filter players with valid (non-zero) stat
+    const eligible = sorted.filter(p => p[statName] > 0);
+    const total = eligible.length;
+
+    for (let i = 0; i < sorted.length; i++) {
+      const val = sorted[i][statName];
+
+      if (val === 0) {
+        ranks[sorted[i].playerId] = 0;
+        percents[sorted[i].playerId] = 0;
+        continue;
+      }
+
+      if (val !== prevValue) {
+        rank = rank + itemsWithSameRank;
+        itemsWithSameRank = 1;
+      } else {
+        itemsWithSameRank++;
+      }
+
+      ranks[sorted[i].playerId] = rank;
+      percents[sorted[i].playerId] = parseFloat(
+        ((1 - (rank - 1) / total) * 100).toFixed(2)
+      );
+
+      prevValue = val;
+    }
+
+    return { ranks, percents };
+  }
+
+  const { ranks: avgRanks, percents: avgPercents } = rankPlayers("avg");
+  const { ranks: fanPointsRanks, percents: fanPointsPercents } = rankPlayers("fanPoints");
+  const { ranks: fanPPGRanks, percents: fanPPGPercents } = rankPlayers("fanPPG");
+  const { ranks: seriesRanks, percents: seriesPercents } = rankPlayers("series");
+  const { ranks: pinfallRanks, percents: pinfallPercents } = rankPlayers("pinfall");
+
+  const upserts = playerStats.map((p) =>
+    prisma.playerRank.upsert({
+      where: { playerId: p.playerId },
+      update: {
+        avgRank: avgRanks[p.playerId] || 0,
+        avgPercent: avgPercents[p.playerId] || 0,
+
+        fanPoints: fanPointsRanks[p.playerId] || 0,
+        fanPercent: fanPointsPercents[p.playerId] || 0,
+
+        fanPPG: fanPPGRanks[p.playerId] || 0,
+        fanPPGPercent: fanPPGPercents[p.playerId] || 0,
+
+        seriesRank: seriesRanks[p.playerId] || 0,
+        seriesPercent: seriesPercents[p.playerId] || 0,
+
+        pinfallRank: pinfallRanks[p.playerId] || 0,
+        pinfallPercent: pinfallPercents[p.playerId] || 0,
+      },
+      create: {
+        playerId: p.playerId,
+        avgRank: avgRanks[p.playerId] || 0,
+        avgPercent: avgPercents[p.playerId] || 0,
+
+        fanPoints: fanPointsRanks[p.playerId] || 0,
+        fanPercent: fanPointsPercents[p.playerId] || 0,
+
+        fanPPG: fanPPGRanks[p.playerId] || 0,
+        fanPPGPercent: fanPPGPercents[p.playerId] || 0,
+
+        seriesRank: seriesRanks[p.playerId] || 0,
+        seriesPercent: seriesPercents[p.playerId] || 0,
+
+        pinfallRank: pinfallRanks[p.playerId] || 0,
+        pinfallPercent: pinfallPercents[p.playerId] || 0,
+      },
+    })
+  );
+
+  await Promise.all(upserts);
+}
+
+function normalizeTeamName(name) {
+  return name.trim().toLowerCase();
+}
+
+async function updateTeamRanks(league) {
+  const scores = await prisma.weekScore.findMany({
+    where: { player: { league } },
+    include: { player: true },
+  });
+
+  // Map normalizedTeamName -> canonical display name
+  const canonicalNames = {};
+
+  // Map normalizedTeamName -> week -> aggregated data
+  const teamWeekMap = {};
+
+  for (const score of scores) {
+    if (!score.myTeam) continue;
+
+    const normalizedTeamName = normalizeTeamName(score.myTeam);
+    if (!canonicalNames[normalizedTeamName]) {
+      canonicalNames[normalizedTeamName] = score.myTeam.trim();
+    }
+
+    if (!teamWeekMap[normalizedTeamName]) {
+      teamWeekMap[normalizedTeamName] = {};
+    }
+
+    const week = score.week;
+    if (!teamWeekMap[normalizedTeamName][week]) {
+      teamWeekMap[normalizedTeamName][week] = {
+        pinfall: 0,
+        games: 0,
+        fanPoints: 0,
+      };
+    }
+
+    const games = [score.game1, score.game2, score.game3].filter(g => g != null);
+    const seriesTotal = games.reduce((a, b) => a + b, 0);
+    const fanPoints = calculateFantasyPoints([score]);
+
+    teamWeekMap[normalizedTeamName][week].pinfall += seriesTotal;
+    teamWeekMap[normalizedTeamName][week].games += games.length;
+    teamWeekMap[normalizedTeamName][week].fanPoints += fanPoints;
+  }
+
+  // Aggregate across all weeks per normalized team name
+  const teamStats = Object.entries(teamWeekMap).map(([normalizedName, weeks]) => {
+    let totalPinfall = 0;
+    let totalGames = 0;
+    let totalFanPoints = 0;
+    let highSeries = 0;
+
+    for (const weekData of Object.values(weeks)) {
+      totalPinfall += weekData.pinfall;
+      totalGames += weekData.games;
+      totalFanPoints += weekData.fanPoints;
+
+      if (weekData.pinfall > highSeries) {
+        highSeries = weekData.pinfall;
+      }
+    }
+
+    return {
+      normalizedName,
+      displayName: canonicalNames[normalizedName],
+      league,
+      totalPinfall,
+      totalGames,
+      totalFanPoints,
+      highSeries,
+      avg: totalGames > 0 ? totalPinfall / totalGames : 0,
+      fanPPG: totalGames > 0 ? totalFanPoints / totalGames : 0,
+    };
+  });
+
+  // Ranking function (same as before)
+  function rank(stat) {
+    const sorted = [...teamStats].sort((a, b) => b[stat] - a[stat]);
+    const ranks = {};
+    const percents = {};
+    let rank = 1;
+    let prev = null;
+    let ties = 0;
+
+    const eligible = sorted.filter(t => t[stat] > 0);
+    const total = eligible.length;
+
+    for (const t of sorted) {
+      if (t[stat] === 0) {
+        ranks[t.normalizedName] = 0;
+        percents[t.normalizedName] = 0;
+        continue;
+      }
+
+      if (t[stat] !== prev) {
+        rank += ties;
+        ties = 1;
+      } else {
+        ties++;
+      }
+
+      ranks[t.normalizedName] = rank;
+      percents[t.normalizedName] = parseFloat(((1 - (rank - 1) / total) * 100).toFixed(2));
+      prev = t[stat];
+    }
+
+    return { ranks, percents };
+  }
+
+  const { ranks: avgRanks, percents: avgPercents } = rank("avg");
+  const { ranks: seriesRanks, percents: seriesPercents } = rank("highSeries");
+  const { ranks: pinfallRanks, percents: pinfallPercents } = rank("totalPinfall");
+  const { ranks: fanPointsRanks, percents: fanPointsPercents } = rank("totalFanPoints");
+  const { ranks: fanPPGRanks, percents: fanPPGPercents } = rank("fanPPG");
+
+  // Upsert bowling teams with normalized names, use canonical display name
+  await Promise.all(
+    teamStats.map(team =>
+      prisma.bowlingTeam.upsert({
+        where: {
+          name_league: {
+            name: team.normalizedName,
+            league: team.league,
+          },
+        },
+        update: {},
+        create: {
+          name: team.normalizedName,
+          league: team.league,
+        },
+      })
+    )
+  );
+
+  // Fetch all teams with normalized names for ID mapping
+  const allTeams = await prisma.bowlingTeam.findMany({
+    where: { league },
+    select: { id: true, name: true },
+  });
+  const idByName = Object.fromEntries(allTeams.map(t => [t.name, t.id]));
+
+  // Upsert bowling team ranks with normalized name keys
+  const upserts = teamStats.map(team =>
+    prisma.bowlingTeamRank.upsert({
+      where: { teamId: idByName[team.normalizedName] },
+      update: {
+        avgRank: avgRanks[team.normalizedName],
+        avgPercent: avgPercents[team.normalizedName],
+
+        fanPoints: fanPointsRanks[team.normalizedName],
+        fanPercent: fanPointsPercents[team.normalizedName],
+
+        fanPPG: fanPPGRanks[team.normalizedName],
+        fanPPGPercent: fanPPGPercents[team.normalizedName],
+
+        seriesRank: seriesRanks[team.normalizedName],
+        seriesPercent: seriesPercents[team.normalizedName],
+
+        pinfallRank: pinfallRanks[team.normalizedName],
+        pinfallPercent: pinfallPercents[team.normalizedName],
+      },
+      create: {
+        teamId: idByName[team.normalizedName],
+        avgRank: avgRanks[team.normalizedName],
+        avgPercent: avgPercents[team.normalizedName],
+
+        fanPoints: fanPointsRanks[team.normalizedName],
+        fanPercent: fanPointsPercents[team.normalizedName],
+
+        fanPPG: fanPPGRanks[team.normalizedName],
+        fanPPGPercent: fanPPGPercents[team.normalizedName],
+
+        seriesRank: seriesRanks[team.normalizedName],
+        seriesPercent: seriesPercents[team.normalizedName],
+
+        pinfallRank: pinfallRanks[team.normalizedName],
+        pinfallPercent: pinfallPercents[team.normalizedName],
+      },
+    })
+  );
+
+  await Promise.all(upserts);
+}
+
 async function completeWeekLock(league, season, week) {
-  return prisma.weekLock.update({
+  await prisma.weekLock.update({
     where: {
       league_season_week: { league, season, week },
     },
@@ -24,6 +346,9 @@ async function completeWeekLock(league, season, week) {
       completed: "yes",
     },
   });
+
+  await updatePlayerRanks(league, season);
+  await updateTeamRanks(league);
 }
 
 async function findAllWeekLocksOrdered() {
@@ -103,7 +428,13 @@ async function findMatchupsByWeek(week) {
 }
 
 // WeekScores 
+function normalizeTeamName(name) {
+  return name?.trim().toLowerCase();
+}
+
 async function createWeekScore(week, game1, game2, game3, average, playerId, opponent, lanes, myTeam) {
+  const normalizedTeam = normalizeTeamName(myTeam);
+
   const existingScore = await prisma.weekScore.findFirst({
     where: {
       playerId: playerId,
@@ -125,7 +456,7 @@ async function createWeekScore(week, game1, game2, game3, average, playerId, opp
       average,
       opponent,
       lanes,
-      myTeam,
+      myTeam: normalizedTeam,
       player: { connect: { id: playerId } }
     }
   });
