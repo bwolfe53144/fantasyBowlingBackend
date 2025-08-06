@@ -311,6 +311,25 @@ async function clearAllPlayerTeams() {
       },
     });
   }
+
+  async function createPlayerBadge(playerId, name, year, description, iconUrl, rank) {
+    return prisma.playerBadge.create({
+      data: {
+        playerId,     
+        name,
+        year,
+        description,
+        iconUrl,
+        rank,
+      },
+    });
+  }
+
+  async function createPriorYearStanding(data) {
+    return prisma.priorYearStanding.create({
+      data,
+    });
+  }
   
   module.exports = {
     clearAllPlayerTeams,
@@ -325,4 +344,6 @@ async function clearAllPlayerTeams() {
     deleteTeamByName,
     changeUserRole,
     getEmailSubscribedUsers,
+    createPlayerBadge,
+    createPriorYearStanding,
   };

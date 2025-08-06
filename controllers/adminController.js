@@ -195,6 +195,84 @@ async function sendStatsEmail(req, res) {
   }
 }
 
+async function assignBadge(req, res) {
+  const { playerId, name, year, description, iconUrl, rank } = req.body;
+
+  if (!playerId || !name || !year) {
+    return res.status(400).json({ error: "Missing required fields: playerId, name, year" });
+  }
+
+  try {
+    const badge = await db.createPlayerBadge(
+      playerId,
+      name,
+      parseInt(year),
+      description || null,
+      iconUrl || null,
+      rank || null
+    );
+
+    return res.status(201).json({ success: true, badge });
+  } catch (error) {
+    console.error("Failed to assign badge:", error);
+    return res.status(500).json({ error: "Failed to assign badge" });
+  }
+}
+
+async function addPriorYearStandings(req, res) {
+  const {
+    teamId,
+    teamName,
+    year,
+    place,
+    wins,
+    losses,
+    ties,
+    pointsFor,
+    pointsAgainst,
+    streak,
+    captainName,
+    captainUserId,
+  } = req.body;
+
+  // Validate required fields
+  if (
+    !year || 
+    !place || 
+    wins == null || 
+    losses == null || 
+    ties == null || 
+    !pointsFor || 
+    !pointsAgainst || 
+    !captainName || 
+    !teamName
+  ) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    const priorStanding = await db.createPriorYearStanding({
+      teamId: teamId || null,
+      teamName,
+      year: parseInt(year),
+      place: parseInt(place),
+      wins: parseInt(wins),
+      losses: parseInt(losses),
+      ties: parseInt(ties),
+      pointsFor: parseInt(pointsFor),
+      pointsAgainst: parseInt(pointsAgainst),
+      streak: streak || "N/A",
+      captainName,
+      captainUserId: captainUserId || null,
+    });
+
+    return res.status(201).json({ success: true, priorStanding });
+  } catch (err) {
+    console.error("Failed to add prior year standing:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 module.exports = {
   clearPlayers, 
   removePlayer, 
@@ -208,4 +286,6 @@ module.exports = {
   generateSchedule, 
   changeRole, 
   sendStatsEmail,
+  assignBadge,
+  addPriorYearStandings,
 };
