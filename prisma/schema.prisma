@@ -27,6 +27,7 @@ model User {
   starred              StarredMessage[]
   survivorEntries      SurvivorEntry[]
   team                 Team?
+  priorYearCaptainStandings PriorYearStanding[] @relation("UserPriorYearCaptainStandings")
 
   @@unique([firstname, lastname])
 }
@@ -43,35 +44,65 @@ model Team {
   streak         String              @default("W0")
   playoffSeed    Int?
   completedWeeks Int[]
+  allTimeWins    Int                 @default(0)     
+  allTimeLosses  Int                 @default(0)    
+  allTimeTies    Int                 @default(0)     
   team1Matches   Match[]             @relation("Team1Matches")
   team2Matches   Match[]             @relation("Team2Matches")
   players        Player[]
   transactions   PlayerTransaction[]
   rosters        Roster[]            @relation("TeamRosters")
   owner          User?               @relation(fields: [ownerId], references: [id])
+  priorYearStandings PriorYearStanding[] @relation("TeamPriorYearStandings")
+
 }
 
 model Player {
-  id             String               @id @default(uuid())
+  id             String        @id @default(uuid())
   name           String
   league         String
   position       String
-  setPosition    String               @default("")
+  setPosition    String        @default("")
   teamId         String?
   lyAverage      String?
   lyGames        String?
   lyPoints       String?
-  dropClaimants  Claimant[]           @relation("DropPlayer")
-  team           Team?                @relation(fields: [teamId], references: [id])
-  claims         PlayerClaim[]        @relation("PlayerClaims")
+  
+  badges         PlayerBadge[]  
+  playerRank     PlayerRank?   @relation("Player_PlayerRank")
+
+  dropClaimants  Claimant[]    @relation("DropPlayer")
+  team           Team?         @relation(fields: [teamId], references: [id])
+  claims         PlayerClaim[] @relation("PlayerClaims")
   transactions   PlayerTransaction[]
-  rosters        Roster[]             @relation("PlayerRosters")
+  rosters        Roster[]      @relation("PlayerRosters")
   survivorPicks  SurvivorPlayer[]
   survivorUsages SurvivorUsedPlayer[]
   weekLineups    SurvivorWeekLineup[]
   weekScores     WeekScore[]
 
   @@unique([name, league])
+}
+
+model PlayerRank {
+  id               String  @id @default(uuid())
+  playerId         String  @unique
+  player           Player  @relation("Player_PlayerRank", fields: [playerId], references: [id])
+
+  avgRank          Int?    @default(0)
+  avgPercent       Float?  @default(0.0)
+
+  fanPoints        Int?    @default(0)
+  fanPercent       Float?  @default(0.0)
+
+  fanPPG           Int?    @default(0)
+  fanPPGPercent    Float?  @default(0.0)   
+
+  seriesRank       Int?    @default(0)
+  seriesPercent    Float?  @default(0.0)
+
+  pinfallRank      Int?    @default(0)
+  pinfallPercent   Float?  @default(0.0)
 }
 
 model Roster {
@@ -248,6 +279,71 @@ model SurvivorWeekLineup {
   player    Player        @relation(fields: [playerId], references: [id])
 
   @@unique([entryId, week, playerId])
+}
+
+model PlayerBadge {
+  id          String   @id @default(uuid())
+  name        String
+  rank        String
+  description String?
+  iconUrl     String?
+  year        Int
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}
+
+model BowlingTeam {
+  id        String           @id @default(uuid())
+  name      String
+  league    String
+  createdAt DateTime         @default(now())
+
+  rank      BowlingTeamRank? 
+
+  @@unique([name, league], name: "name_league")
+}
+
+model BowlingTeamRank {
+  id              String        @id @default(uuid())
+  teamId          String        @unique
+  team            BowlingTeam   @relation(fields: [teamId], references: [id])
+
+  avgRank         Int?          @default(0)
+  avgPercent      Float?        @default(0.0)
+
+  fanPoints       Int?          @default(0)
+  fanPercent      Float?        @default(0.0)
+
+  fanPPG          Int?          @default(0)
+  fanPPGPercent   Float?        @default(0.0)
+
+  seriesRank      Int?          @default(0)
+  seriesPercent   Float?        @default(0.0)
+
+  pinfallRank     Int?          @default(0)
+  pinfallPercent  Float?        @default(0.0)
+}
+
+model PriorYearStanding {
+  id             String   @id @default(uuid())
+  teamId         String?  
+  team           Team?    @relation("TeamPriorYearStandings", fields: [teamId], references: [id])
+  year           Int
+  teamName       String
+
+  place          Int
+  wins           Int
+  losses         Int
+  ties           Int
+
+  pointsFor      Int
+  pointsAgainst  Int
+  streak         String?
+
+  captainName    String
+  captainUserId  String?  
+  captainUser    User?    @relation("UserPriorYearCaptainStandings", fields: [captainUserId], references: [id])
 }
 
 enum UserRole {
