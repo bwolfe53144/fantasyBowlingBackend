@@ -134,11 +134,13 @@ async function getPlayerWithStatsByName(playerName) {
     where: {
       name: {
         equals: playerName,
-        mode: 'insensitive', // optional: case-insensitive search
+        mode: 'insensitive',
       },
     },
     include: {
       weekScores: true,
+      playerRank: true,
+      badges: true, 
     },
   });
 }

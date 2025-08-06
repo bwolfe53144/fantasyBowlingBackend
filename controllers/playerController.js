@@ -79,6 +79,8 @@ async function getPlayers(req, res) {
           ...score,
           league: p.league,
         })),
+        playerRank: p.playerRank || null, 
+        badges: p.badges || [],
       }));
   
       res.json({
