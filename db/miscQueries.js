@@ -258,6 +258,91 @@ async function updateUserEmailSubscription(userId, email, subscribe) {
     });
   }
 
+  async function getUserByFullName(firstname, lastname) {
+    return prisma.user.findUnique({
+      where: { firstname_lastname: { firstname, lastname } },
+    });
+  }
+  
+  async function getTeamByOwnerId(ownerId) {
+    return await prisma.team.findFirst({
+      where: { ownerId },
+      select: {
+        name: true,
+        wins: true,
+        losses: true,
+        ties: true,
+        points: true,
+        pointsAgainst: true,
+        streak: true,
+        playoffSeed: true,
+        allTimeWins: true,
+        allTimeLosses: true,
+        allTimeTies: true,
+        completedWeeks: true,
+      },
+    });
+  }
+  
+  async function getPriorYearStandingsByCaptain(captainUserId, captainName) {
+    const whereClause = {
+      OR: [],
+    };
+  
+    if (captainUserId) {
+      whereClause.OR.push({ captainUserId });
+    }
+  
+    if (captainName) {
+      whereClause.OR.push({ captainName });
+    }
+  
+    if (whereClause.OR.length === 0) {
+      // No valid filter, return empty
+      return [];
+    }
+  
+    return await prisma.priorYearStanding.findMany({
+      where: whereClause,
+      orderBy: { year: "desc" },
+    });
+  }
+
+  async function getAllUsersWithFullNames() {
+    return prisma.user.findMany({
+      select: {
+        id: true,
+        firstname: true,
+        lastname: true,
+        username: true,
+        avatarUrl: true,
+        color: true,
+      },
+    });
+  }
+
+  async function getAllPriorYearStandings() {
+    return prisma.priorYearStanding.findMany({
+      select: {
+        id: true,
+        year: true,
+        teamName: true,
+        place: true,
+        wins: true,
+        losses: true,
+        ties: true,
+        pointsFor: true,
+        pointsAgainst: true,
+        streak: true,
+        captainName: true,
+        captainUserId: true,
+      },
+      orderBy: {
+        year: 'desc',
+      },
+    });
+  }
+
 module.exports = {
   updateUserColor,
   getAllUsers,
@@ -277,4 +362,9 @@ module.exports = {
   getRecentMatchesForTeam,
   getUserById, 
   updateUserEmailSubscription,
+  getUserByFullName,
+  getTeamByOwnerId,
+  getPriorYearStandingsByCaptain,
+  getAllUsersWithFullNames,
+  getAllPriorYearStandings,
 };

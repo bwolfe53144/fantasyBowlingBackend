@@ -14,6 +14,8 @@ const upload = multer({
 router.get("/api/get-users", miscController.getUsers);
 router.get("/api/match/:id", miscController.getMatchups);
 router.get("/api/matches/recent/:teamName/:week", miscController.getRecentMatches);
+router.get("/api/owner/:ownerName", miscController.getOwner);
+router.get("/api/owners", miscController.getAllOwners);
 router.get("/api/transactions/recent", miscController.getTransactions);
 router.get("/get-all-lock-statuses", miscController.getAllLockStatuses);
 router.get("/api/schedule", miscController.getSchedule);

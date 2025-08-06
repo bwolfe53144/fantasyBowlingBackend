@@ -257,6 +257,130 @@ async function handleEmail(req, res) {
   }
 }
 
+async function getOwner(req, res) {
+  try {
+    const { ownerName } = req.params;
+
+    if (!ownerName) {
+      return res.status(400).json({ error: "Missing owner name" });
+    }
+
+    const [firstname, ...lastParts] = ownerName.split(" ");
+    const lastname = lastParts.join(" ");
+    if (!firstname || !lastname) {
+      return res.status(400).json({ error: "Invalid owner name format" });
+    }
+
+    const fullName = `${firstname} ${lastname}`;
+    const user = await db.getUserByFullName(firstname, lastname);
+
+    let team = null;
+    let priorYearStandings = [];
+
+    if (user) {
+      team = await db.getTeamByOwnerId(user.id);
+      priorYearStandings = await db.getPriorYearStandingsByCaptain(user.id, fullName);
+    } else {
+      // Only get standings that match captainName
+      priorYearStandings = await db.getPriorYearStandingsByCaptain(null, fullName);
+    }
+
+    if (!team && priorYearStandings.length === 0) {
+      return res.status(404).json({ error: "Owner not found" });
+    }
+
+    return res.json({
+      user: {
+        firstname,
+        lastname,
+        username: user?.username || null,
+        avatarUrl: user?.avatarUrl || null,
+        color: user?.color || null,
+      },
+      team,
+      priorYearStandings,
+    });
+
+  } catch (error) {
+    console.error("Error in getOwner:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function getAllOwners(req, res) {
+  try {
+    // 1. Load all users (for mapping to captainName)
+    const users = await db.getAllUsersWithFullNames();
+
+    // 2. Load all prior year standings
+    const allStandings = await db.getAllPriorYearStandings(); // see function below
+
+    // 3. Group prior year standings by captainName
+    const standingsByCaptain = {};
+    for (const s of allStandings) {
+      if (!standingsByCaptain[s.captainName]) {
+        standingsByCaptain[s.captainName] = [];
+      }
+      standingsByCaptain[s.captainName].push(s);
+    }
+
+    // 4. Build combined list
+    const owners = await Promise.all(
+      Object.entries(standingsByCaptain).map(async ([captainName, standings]) => {
+        const [firstname, ...lastParts] = captainName.split(" ");
+        const lastname = lastParts.join(" ");
+
+        const user = users.find(
+          (u) => u.firstname === firstname && u.lastname === lastname
+        );
+
+        const team = user ? await db.getTeamByOwnerId(user.id) : null;
+
+        return {
+          firstname,
+          lastname,
+          username: user?.username || null,
+          avatarUrl: user?.avatarUrl || null,
+          color: user?.color || null,
+          team,
+          priorYearStandings: standings,
+        };
+      })
+    );
+
+    // 5. Include current-year users who don't appear in prior years
+    const missingCurrentUsers = await Promise.all(
+      users.map(async (user) => {
+        const fullName = `${user.firstname} ${user.lastname}`;
+        const isIncluded = owners.some(
+          (o) => `${o.firstname} ${o.lastname}` === fullName
+        );
+        if (isIncluded) return null;
+
+        const team = await db.getTeamByOwnerId(user.id);
+        if (!team) return null;
+
+        return {
+          firstname: user.firstname,
+          lastname: user.lastname,
+          username: user.username,
+          avatarUrl: user.avatarUrl,
+          color: user.color,
+          team,
+          priorYearStandings: [],
+        };
+      })
+    );
+
+    const finalOwners = [...owners, ...missingCurrentUsers.filter(Boolean)];
+
+    return res.json(finalOwners);
+  } catch (error) {
+    console.error("Error in getAllOwners:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 module.exports = {
   updateColor, 
   changeTeamName, 
@@ -269,4 +393,6 @@ module.exports = {
   getAllLeagues, 
   getRecentMatches, 
   handleEmail,
+  getOwner,
+  getAllOwners,
 };
