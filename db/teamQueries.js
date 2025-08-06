@@ -38,16 +38,14 @@ async function getTeams() {
   
       return {
         name: team.name,
-        captain: team.owner
-          ? `${team.owner.firstname} ${team.owner.lastname.charAt(0)}`
-          : "No Captain",
         record,
         pointsFor: team.points,
         pointsAgainst: team.pointsAgainst,
         streak: team.streak,
-        wins: team.wins,
+        wins: team.wins + (team.ties * 0.5),
         id: team.id,
         playoffSeed: team.playoffSeed,
+        owner: team.owner || null,  
       };
     });
   }
@@ -206,6 +204,46 @@ async function getTeams() {
     return lockedPlayerIds;
   }
 
+  async function getTeamRanks(teamName, league) {
+    return prisma.bowlingTeam.findFirst({
+      where: {
+        name: teamName,
+        league: league,
+      },
+      include: {
+        rank: true,
+      },
+    });
+  }
+
+  async function getDistinctPriorYears() {
+    return prisma.priorYearStanding.findMany({
+      select: { year: true },
+      distinct: ["year"],
+      orderBy: { year: "desc" },
+    });
+  }
+
+  async function getPriorYearStandingsByYear(year) {
+    return prisma.priorYearStanding.findMany({
+      where: { year },
+      orderBy: { place: "asc" },
+      select: {
+        id: true,
+        year: true,
+        place: true,
+        wins: true,
+        losses: true,
+        ties: true,
+        pointsFor: true,
+        pointsAgainst: true,
+        streak: true,
+        captainName: true,
+        teamName: true,
+      },
+    });
+  }
+
   module.exports = {
     getTeams,
     getTeamsForHome,
@@ -216,4 +254,7 @@ async function getTeams() {
     getTeamPlayers,
     getFantasyTeamPlayers,
     getLockedPlayerIds,
+    getTeamRanks,
+    getDistinctPriorYears,
+    getPriorYearStandingsByYear,
   };

@@ -127,6 +127,50 @@ async function createTeam(req, res) {
     }
   }
 
+  async function getTeamRanks(req, res) {
+    const { teamName, league } = req.params;
+  
+    try {
+      const team = await db.getTeamRanks(teamName, league);
+  
+      if (!team) {
+        return res.status(404).json({ error: "Team not found" });
+      }
+  
+      res.json({ rank: team.rank });
+    } catch (error) {
+      console.error("Error fetching team ranks:", error);
+      res.status(500).json({ error: "Failed to fetch team ranks" });
+    }
+  }
+
+  async function getPriorYears(req, res) {
+    try {
+      const years = await db.getDistinctPriorYears();
+      const uniqueYears = years.map((y) => y.year);
+      return res.status(200).json({ years: uniqueYears });
+    } catch (error) {
+      console.error("Error fetching prior years:", error);
+      return res.status(500).json({ error: "Failed to fetch prior years" });
+    }
+  }
+
+  async function getSpecificYear(req, res) {
+    const { year } = req.params;
+  
+    if (!year || isNaN(parseInt(year))) {
+      return res.status(400).json({ error: "Invalid or missing year parameter" });
+    }
+  
+    try {
+      const results = await db.getPriorYearStandingsByYear(parseInt(year));
+      return res.status(200).json(results);
+    } catch (err) {
+      console.error("Error fetching prior standings:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
   module.exports = {
     createTeam, 
     getTeams, 
@@ -137,5 +181,8 @@ async function createTeam(req, res) {
     getTeamPlayers, 
     getFantasyTeamPlayers, 
     checkLockStatus,
+    getTeamRanks,
+    getPriorYears,
+    getSpecificYear,
   };
 
