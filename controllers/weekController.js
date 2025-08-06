@@ -27,7 +27,7 @@ async function findCurrentWeek(req, res) {
     const allWeekLocks = await db.findAllWeekLocksOrdered();
     const now = new Date();
 
-    const fantasyLeagues = ["Ren Faire", "Beavers Latestarters", "Cheris Night Out", "Andys Classic"];
+    const fantasyLeagues = ["Ren Faire", "Inner City", "Beavers Latestarters", "Cheris Night Out", "Andys Classic"];
 
     // Group locks by week, filtering fantasy leagues
     const leaguesPerWeek = new Map();
