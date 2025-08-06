@@ -128,7 +128,7 @@ async function createTeam(req, res) {
   }
 
   async function getTeamRanks(req, res) {
-    const { teamName, league } = req.params;
+    const { league, teamName } = req.params;
   
     try {
       const team = await db.getTeamRanks(teamName, league);
