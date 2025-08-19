@@ -120,7 +120,7 @@ async function login(req, res) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "1h" });
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "24h" });
     res.json({ token, user: { id: user.id, name: user.username, email: user.email } });
   } catch (err) {
     console.error("Login Error:", err);
