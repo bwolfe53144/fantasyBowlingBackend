@@ -7,26 +7,27 @@ function setupDraftServer(server, app) {
   const INACTIVE_TIMER = 2;
 
   const draftOrderBase = [
-    /*{ name: "Action Territory", skipRounds: [{ round: 15, position: "1", name: "Jenn Jacoby" }] },
+    { name: "Bowling Stones", skipRounds: [{ round: 15, position: "1", name: "Jenn Jacoby" }] },
     { name: "Lisa's Team", skipRounds: [{ round: 15, position: "5", name: "Lisa Brenneman" }] },
     { name: "The Underdogs", skipRounds: [{ round: 15, position: "2", name: "Ethan Najarro" }] },
     { name: "Gutter Control", skipRounds: [] },
     { name: "Go Packers Go", skipRounds: [{ round: 15, position: "1", name: "Josh Clark" }] },
-    { name: "Bergernation", skipRounds: [{ round: 10, position: "5", name: "Brad Berger" }] },*/
+    { name: "Bergernation", skipRounds: [{ round: 10, position: "5", name: "Brad Berger" }] },
     { name: "Joel Jr's Team", skipRounds: [{ round: 10, position: "1", name: "Joel Oechler Jr" }] },
     { name: "The Takeover", skipRounds: [{ round: 7, position: "2", name: "Tyrone Wade" }] },
     { name: "The Wolf Pack", skipRounds: [{ round: 5, position: "2", name: "Brian Wolfe" }, { round: 6, position: "5", name: "Brian Wolfe" }] },
-    /*{ name: "Scott's Team", skipRounds: [{ round: 5, position: "5", name: "Scott Stine" }] },
+    { name: "Scott's Team", skipRounds: [{ round: 5, position: "5", name: "Scott Stine" }] },
     { name: "Will's Team", skipRounds: [{ round: 5, position: "5", name: "William Dillon" }, { round: 6, position: "3", name: "William Dillon" }] },
     { name: "Greg's Team", skipRounds: [{ round: 4, position: "5", name: "Greg Sternbach" }] },
     { name: "My Drinking Team", skipRounds: [{ round: 4, position: "4", name: "Kevin Arriaga" }] },
+    { name: "Dewbertz", skipRounds: [{ round: 4, position: "4", name: "Dustin Jacoby" }] },
     { name: "Pinsanity", skipRounds: [{ round: 3, position: "5", name: "Ben Barhyte" }] },
     { name: "Shirts Off", skipRounds: [{ round: 3, position: "4", name: "Chris Graham" }] },
     { name: "Bowlyfans", skipRounds: [{ round: 3, position: "5", name: "Mark Moran" }] },
     { name: "My Imaginary Friends", skipRounds: [{ round: 1, position: "1", name: "Mike Tumeo" }, { round: 2, position: "5", name: "Mike Tumeo" }] },
     { name: "Erik B's Team", skipRounds: [{ round: 2, position: "1", name: "Eric Brenneman" }] },
     { name: "Poblo", skipRounds: [{ round: 1, position: "1", name: "Poblo" }, { round: 2, position: "4", name: "Poblo" }] },
-    { name: "TSAO", skipRounds: [{ round: 2, position: "5", name: "Zak Eidsor" }] },*/
+    { name: "TSAO", skipRounds: [{ round: 2, position: "5", name: "Zak Eidsor" }] },
   ];
 
   const totalRounds = 15;
