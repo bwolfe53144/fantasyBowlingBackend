@@ -3,6 +3,8 @@ const cors = require("cors");
 const cron = require("node-cron");
 require("dotenv").config();
 const { Pool } = require("pg");
+const http = require("http");
+const setupDraftServer = require("./draftServer"); 
 
 const pool = new Pool({
   ssl: { rejectUnauthorized: false },
@@ -34,23 +36,31 @@ app.use(cors({
 
 app.options("*", cors());
 
-app.get("/", (req, res) => res.send("🤖 Backend is online"));
-
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use("/", indexRouter);
 
+app.get("/", (req, res) => res.send("🤖 Backend is online"));
+
+// Create HTTP server from express app
+const server = http.createServer(app);
+
+// Setup draft server with sockets
+setupDraftServer(server, app);
+
+// Your cron jobs as usual
 cron.schedule("1 7 * * *", async () => {
   await resolveExpiredClaims();
 });
-
-cron.schedule('1 18 * * *', async () => {
+cron.schedule("1 18 * * *", async () => {
   await lockSurvivorLineups();
 });
-
-cron.schedule('1 19 * * *', async () => {
+cron.schedule("1 9 * * *", async () => {
+  await lockSurvivorLineups();
+});
+cron.schedule("1 19 * * *", async () => {
   await lockSurvivorLineups();
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(` Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
