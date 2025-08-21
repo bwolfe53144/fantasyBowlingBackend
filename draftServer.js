@@ -3,7 +3,7 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 function setupDraftServer(server, app) {
-  const DEFAULT_TIMER = 10;
+  const DEFAULT_TIMER = 15;
   const INACTIVE_TIMER = 2;
 
   const draftOrderBase = [
