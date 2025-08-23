@@ -112,9 +112,12 @@ async function getTeams() {
   }
   
   async function createTeam(name, userId) {
-    const formattedName = name.split(' ').map(word =>
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
+    const formattedName = name
+    .trim()                   // remove leading/trailing spaces
+    .replace(/\s+/g, ' ')     // collapse multiple spaces into one
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
   
     return prisma.team.create({
       data: {

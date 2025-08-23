@@ -55,9 +55,17 @@ async function updateTeamName(userId, newName) {
 
   if (!team) return null;
 
+  // Normalize the new name
+  const formattedName = newName
+    .trim()                 // remove leading/trailing spaces
+    .replace(/\s+/g, ' ')   // collapse multiple spaces into one
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+
   return await prisma.team.update({
     where: { id: team.id },
-    data: { name: newName },
+    data: { name: formattedName },
   });
 }
 
