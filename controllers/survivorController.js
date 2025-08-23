@@ -1,21 +1,29 @@
 const db = require("../db/survivorQueries");
 
 async function createSurvivorTeam(req, res) {
-    try {
-      const { userId, league, teamName } = req.body;
-  
-      if (!userId || !league || !teamName) {
-        return res.status(400).json({ error: 'Missing required fields' });
-      }
-  
-      const newTeam = await db.createSurvivorTeamEntry(userId, league, teamName);
-  
-      res.status(201).json({ message: 'Survivor team created', team: newTeam });
-    } catch (error) {
-      console.error('Error creating survivor team:', error);
-      res.status(500).json({ error: 'Internal server error' });
+  try {
+    let { userId, league, teamName } = req.body;
+
+    if (!userId || !league || !teamName) {
+      return res.status(400).json({ error: 'Missing required fields' });
     }
+
+    // Normalize the team name: trim, collapse spaces, capitalize words
+    teamName = teamName
+      .trim()                 // remove leading/trailing spaces
+      .replace(/\s+/g, ' ')   // collapse multiple spaces into one
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+
+    const newTeam = await db.createSurvivorTeamEntry(userId, league, teamName);
+
+    res.status(201).json({ message: 'Survivor team created', team: newTeam });
+  } catch (error) {
+    console.error('Error creating survivor team:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
+}
 
   async function getSurvivorEntries(req, res) {
     try {
