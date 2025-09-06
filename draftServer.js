@@ -9,7 +9,7 @@ function setupDraftServer(server, app) {
   const draftOrderBase = [
     { name: "Bowling Stones", skipRounds: [{ round: 15, position: "1", name: "Jenn Jacoby" }] },
     { name: "Lisa's Team", skipRounds: [{ round: 15, position: "5", name: "Lisa Brenneman" }] },
-    { name: "The Underdogs", skipRounds: [{ round: 15, position: "2", name: "Ethan Najarro" }] },
+    { name: "Hell’s Kitchen", skipRounds: [{ round: 15, position: "2", name: "Ethan Najarro" }] },
     { name: "Gutter Control", skipRounds: [] },
     { name: "Go Packers Go", skipRounds: [{ round: 15, position: "1", name: "Josh Clark" }] },
     { name: "Bergernation", skipRounds: [{ round: 11, position: "5", name: "Brad Berger" }] },
@@ -17,7 +17,7 @@ function setupDraftServer(server, app) {
     { name: "The Takeover", skipRounds: [{ round: 9, position: "2", name: "Tyrone Wade" }] },
     { name: "The Wolf Pack", skipRounds: [{ round: 6, position: "2", name: "Brian Wolfe" }, { round: 7, position: "5", name: "Brian Wolfe" }] },
     { name: "Scott's Team", skipRounds: [{ round: 6, position: "5", name: "Scott Stine" }] },
-    { name: "Will's Team", skipRounds: [{ round: 4, position: "5", name: "William Dillon" }, { round: 6, position: "3", name: "William Dillon" }] },
+    { name: "Iconic Ink", skipRounds: [{ round: 4, position: "5", name: "William Dillon" }, { round: 6, position: "3", name: "William Dillon" }] },
     { name: "Greg's Team", skipRounds: [{ round: 5, position: "5", name: "Greg Sternbach" }] },
     { name: "My Drinking Team", skipRounds: [{ round: 4, position: "4", name: "Kevin Arriaga" }] },
     { name: "Dewbertz", skipRounds: [{ round: 4, position: "3", name: "Dustin Jacoby" }] },
