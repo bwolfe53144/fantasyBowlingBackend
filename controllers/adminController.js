@@ -111,8 +111,17 @@ async function deleteTransactions(req, res) {
 // Scores and Locks
 async function clearWeekscores(req, res) {
   try {
-    await db.clearWeekScores();
-    res.status(200).json({ message: "All weekscores cleared successfully" });
+    const { league } = req.body;
+    if (!league) {
+      return res.status(400).json({ error: "League is required" });
+    }
+
+    const result = await db.clearWeekScores(league);
+
+    res.status(200).json({
+      message: `Weekscores for league '${league}' cleared successfully`,
+      count: result.count,
+    });
   } catch (error) {
     console.error("Error clearing weekscores:", error);
     res.status(500).json({ error: "Failed to clear weekscores" });

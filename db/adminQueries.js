@@ -284,8 +284,14 @@ async function clearAllPlayerTeams() {
   }
   
   //  Admin Utilities
-  async function clearWeekScores() {
-    return await prisma.weekScore.deleteMany({});
+  async function clearWeekScores(league) {
+    return await prisma.weekScore.deleteMany({
+      where: {
+        player: {
+          league: league,  
+        },
+      },
+    });
   }
   
   async function deleteTeamByName(teamName) {
