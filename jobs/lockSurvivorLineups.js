@@ -25,7 +25,7 @@ async function lockSurvivorLineups() {
     }
 
     for (const lock of weekLocks) {
-      if (lock.week <= 2) {
+      if (lock.week <= 5) {
         console.log(`⏭️ Skipping week ${lock.week} (no snapshot needed)`);
         continue;
       }
