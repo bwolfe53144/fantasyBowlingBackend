@@ -1,9 +1,8 @@
-const { Server } = require("socket.io");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-function setupDraftServer(server, app) {
-  const DEFAULT_TIMER = 15;
+function setupDraftServer(server, app, io) {
+  const DEFAULT_TIMER = 5;
   const INACTIVE_TIMER = 2;
 
   const draftOrderBase = [
@@ -44,7 +43,8 @@ function setupDraftServer(server, app) {
   }
 
   const fantasyLeagues = ["Andys Classic","Beavers Latestarters","Cheris Night Out","Ren Faire","Inner City","Sunday AM"];
-  const MIN_GAMES = 45;
+  const MIN_GAMES_LAST_YEAR = 45;
+  const MIN_GAMES_THIS_YEAR = 3;
 
   let draftState = {
     currentPickIndex: 0,
@@ -53,9 +53,10 @@ function setupDraftServer(server, app) {
     timer: DEFAULT_TIMER,
     allPlayers: [],
     teamCyclePositions: {},
-    teamStatus: {}   // ✅ always initialized
+    teamStatus: {}
   };
 
+  // Initialize teamCyclePositions for skipped picks
   for (const pick of draftOrder) {
     if (pick.skipPick) {
       const teamName = pick.name;
@@ -66,16 +67,25 @@ function setupDraftServer(server, app) {
     }
   }
 
-  let timerExpiresAt = Date.now() + DEFAULT_TIMER * 1000;
   let draftStarted = false;
+  let timerExpiresAt;
+
+  // Set initial timer
+  const firstPick = draftOrder[draftState.currentPickIndex];
+  draftState.timer = firstPick && draftState.inactiveTeams.has(firstPick.name) ? INACTIVE_TIMER : DEFAULT_TIMER;
+  timerExpiresAt = Date.now() + draftState.timer * 1000;
 
   function resetTimer() {
     const currentPick = draftOrder[draftState.currentPickIndex];
-    if (!currentPick || currentPick.skipPick) return;
-    const timerDuration = draftState.inactiveTeams.has(currentPick.name) ? INACTIVE_TIMER : DEFAULT_TIMER;
-    timerExpiresAt = Date.now() + timerDuration * 1000;
-    draftState.timer = timerDuration;
-    io.emit("timerUpdate", timerDuration);
+    if (!currentPick) return;
+    draftState.timer = currentPick.skipPick
+      ? 1
+      : draftState.inactiveTeams.has(currentPick.name)
+      ? INACTIVE_TIMER
+      : DEFAULT_TIMER;
+
+    timerExpiresAt = Date.now() + draftState.timer * 1000;
+    io.emit("timerUpdate", draftState.timer);
   }
 
   function emitDraftUpdate() {
@@ -94,9 +104,7 @@ function setupDraftServer(server, app) {
     draftState.teamCyclePositions[teamName][cycle].add(position);
   }
 
-  const io = new Server(server, { cors: { origin: "*", methods: ["GET","POST"] }, maxHttpBufferSize: 5e7 });
-
-  /** REST: Get draft state */
+  // --------------------- REST ENDPOINTS ---------------------
   app.get("/api/draft", (req, res) => {
     res.json({
       currentPickIndex: draftState.currentPickIndex,
@@ -107,7 +115,6 @@ function setupDraftServer(server, app) {
     });
   });
 
-  /** REST: Manual pick */
   app.post("/api/draft/pick", (req, res) => {
     const { playerId, teamName, playerData } = req.body;
     const currentPick = draftOrder[draftState.currentPickIndex];
@@ -119,7 +126,6 @@ function setupDraftServer(server, app) {
     draftState.draftedPlayers.push({ playerId, teamName, playerData, round: currentPick.round });
     markPositionDrafted(teamName, currentPick.round, playerData.position);
     draftState.currentPickIndex += 1;
-    draftState.inactiveTeams.delete(teamName);
 
     if (draftState.currentPickIndex >= draftOrder.length) io.emit("draftComplete", { message: "Draft finished." });
 
@@ -128,32 +134,24 @@ function setupDraftServer(server, app) {
     res.json({ success: true });
   });
 
-  /** SOCKET.IO */
+  // --------------------- SOCKET.IO ---------------------
   io.on("connection", (socket) => {
+    // Send initial draft state
+    socket.emit("draftUpdate", { ...draftState, inactiveTeams: Array.from(draftState.inactiveTeams) });
+    socket.emit("timerUpdate", Math.max(0, Math.round((timerExpiresAt - Date.now()) / 1000)));
+
     socket.on("assignDraftedPlayersToTeams", async () => {
       try {
         for (const draft of draftState.draftedPlayers) {
           if (!draft.playerId) continue;
-    
-          const team = await prisma.team.findUnique({
-            where: { name: draft.teamName },
-          });
-          if (!team) continue; // just skip if team doesn’t exist
-    
-          await prisma.player.update({
-            where: { id: draft.playerId },
-            data: { teamId: team.id },
-          });
+          const team = await prisma.team.findUnique({ where: { name: draft.teamName } });
+          if (!team) continue;
+          await prisma.player.update({ where: { id: draft.playerId }, data: { teamId: team.id } });
         }
-    
-        io.emit("draftAssigned", {
-          message: "All drafted players assigned to their teams.",
-        });
+        io.emit("draftAssigned", { message: "All drafted players assigned to their teams." });
       } catch (err) {
         console.error("Failed to assign drafted players:", err);
-        socket.emit("error", {
-          message: "Failed to assign drafted players.",
-        });
+        socket.emit("error", { message: "Failed to assign drafted players." });
       }
     });
 
@@ -165,35 +163,32 @@ function setupDraftServer(server, app) {
         league: p.league,
         position: p.position,
         lyAverage: Number(p.lyAverage ?? p.average ?? 0),
-        lyGames: Number(p.lyGames ?? p.games ?? 0),
+        lyGames: Number(p.lyGames ?? 0),
+        games: Number(p.games ?? 0),
         teamId: p.teamId ?? null
       }));
       if (ack) ack({ ok: true, count: draftState.allPlayers.length });
     });
 
-    // ✅ Register team
     socket.on("registerTeam", (teamName) => {
       socket.teamName = teamName;
       draftState.teamStatus[teamName] = true;
       io.emit("teamStatusUpdate", draftState.teamStatus);
     });
 
-    // ✅ Handle disconnect safely
     socket.on("disconnect", () => {
-      if (socket.teamName && draftState.teamStatus) {
+      if (socket.teamName) {
         draftState.teamStatus[socket.teamName] = false;
         io.emit("teamStatusUpdate", draftState.teamStatus);
       }
     });
-
-    socket.emit("draftUpdate", { ...draftState, inactiveTeams: Array.from(draftState.inactiveTeams) });
-    socket.emit("timerUpdate", Math.max(0, Math.round((timerExpiresAt - Date.now()) / 1000)));
 
     socket.on("pickPlayer", ({ playerId, teamName, playerData }) => {
       manualPick(playerId, teamName, playerData);
     });
 
     socket.on("removeInactivity", ({ teamName }) => {
+      if (!teamName) return;
       draftState.inactiveTeams.delete(teamName);
       resetTimer();
       emitDraftUpdate();
@@ -202,17 +197,12 @@ function setupDraftServer(server, app) {
     socket.on("requestAutoPick", () => autoPick());
 
     socket.on("startDraft", () => {
-      draftState = {
-        currentPickIndex: 0,
-        draftedPlayers: [],
-        inactiveTeams: new Set(),
-        timer: DEFAULT_TIMER,
-        allPlayers: draftState.allPlayers,
-        teamCyclePositions: {},
-        teamStatus: {}
-      };
-    
-      // 🔄 Rebuild teamCyclePositions from draftOrder + skipRounds
+      draftState.currentPickIndex = 0;
+      draftState.draftedPlayers = [];
+      draftState.teamCyclePositions = {};
+      draftStarted = true;
+
+      // rebuild teamCyclePositions
       for (const pick of draftOrder) {
         if (pick.skipPick) {
           const teamName = pick.name;
@@ -222,13 +212,14 @@ function setupDraftServer(server, app) {
           draftState.teamCyclePositions[teamName][cycle].add(pick.skipPick.position);
         }
       }
-    
-      draftStarted = true;
-      timerExpiresAt = Date.now() + DEFAULT_TIMER * 1000;
-    
+
+      // Set initial timer
+      const firstPick = draftOrder[draftState.currentPickIndex];
+      draftState.timer = firstPick && draftState.inactiveTeams.has(firstPick.name) ? INACTIVE_TIMER : DEFAULT_TIMER;
+      timerExpiresAt = Date.now() + draftState.timer * 1000;
+
       emitDraftUpdate();
       io.emit("draftStarted", { ...draftState, inactiveTeams: Array.from(draftState.inactiveTeams) });
-      io.emit("timerUpdate", DEFAULT_TIMER);
     });
   });
 
@@ -242,7 +233,6 @@ function setupDraftServer(server, app) {
     draftState.draftedPlayers.push({ playerId, teamName, playerData, round: currentPick.round });
     markPositionDrafted(teamName, currentPick.round, playerData.position);
     draftState.currentPickIndex += 1;
-    draftState.inactiveTeams.delete(teamName);
 
     if (draftState.currentPickIndex >= draftOrder.length) io.emit("draftComplete", { message: "Draft finished." });
 
@@ -252,10 +242,9 @@ function setupDraftServer(server, app) {
 
   function autoPick() {
     if (!draftStarted || draftState.currentPickIndex >= draftOrder.length) return;
-  
+
     const currentPick = draftOrder[draftState.currentPickIndex];
-  
-    // Handle skipped pick automatically
+
     if (currentPick.skipPick) {
       draftState.draftedPlayers.push({
         playerId: null,
@@ -266,13 +255,13 @@ function setupDraftServer(server, app) {
       markPositionDrafted(currentPick.name, currentPick.round, currentPick.skipPick.position);
       draftState.currentPickIndex += 1;
       emitDraftUpdate();
-      resetTimer(); // reset for the *next* pick
+      resetTimer();
       return;
     }
-  
+
     const remaining = Math.round((timerExpiresAt - Date.now()) / 1000);
     if (remaining <= 0) draftState.inactiveTeams.add(currentPick.name);
-    
+
     if (draftState.inactiveTeams.has(currentPick.name)) {
       const positionsDrafted = getPositionsDraftedThisCycle(currentPick.name, currentPick.round);
       const playerToPick = draftState.allPlayers
@@ -281,13 +270,11 @@ function setupDraftServer(server, app) {
           !p.teamId &&
           fantasyLeagues.includes(p.league) &&
           p.position !== "flex" &&
-          (p.lyGames >= MIN_GAMES ? !positionsDrafted.includes(p.position) : true)
+          (p.lyGames >= MIN_GAMES_LAST_YEAR && (p.games ?? 0) >= MIN_GAMES_THIS_YEAR) &&
+          !positionsDrafted.includes(p.position)
         )
-        .sort((a, b) => {
-          if (b.lyGames >= MIN_GAMES && a.lyGames >= MIN_GAMES) return (b.lyAverage || 0) - (a.lyAverage || 0);
-          return (b.lyGames || 0) - (a.lyGames || 0);
-        })[0];
-  
+        .sort((a, b) => b.lyAverage - a.lyAverage)[0];
+
       if (playerToPick) {
         draftState.draftedPlayers.push({
           playerId: playerToPick.id,
@@ -299,22 +286,20 @@ function setupDraftServer(server, app) {
       }
       draftState.currentPickIndex += 1;
     }
-  
+
     if (draftState.currentPickIndex >= draftOrder.length) io.emit("draftComplete", { message: "Draft finished." });
-  
+
     resetTimer();
     emitDraftUpdate();
   }
 
   setInterval(() => {
     if (!draftStarted || draftState.currentPickIndex >= draftOrder.length) return;
-
     const remaining = Math.round((timerExpiresAt - Date.now()) / 1000);
     if (remaining > 0) {
       io.emit("timerUpdate", remaining);
       return;
     }
-
     autoPick();
   }, 1000);
 
