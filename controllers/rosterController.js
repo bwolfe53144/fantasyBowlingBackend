@@ -34,10 +34,6 @@ async function changeRoster(req, res) {
         const { players, teamId, week } = roster;
         if (!players || !teamId || week === undefined) continue;
   
-        if (week === 6) {
-          console.log(`Updating roster for Team ${teamId}, Week ${week}`);
-        }
-  
         await db.deleteRosterByTeamAndWeek(teamId, week);
   
         const createPromises = players.map(player =>
@@ -50,6 +46,9 @@ async function changeRoster(req, res) {
         );
         await Promise.all(createPromises);
       }
+  
+      // ✅ Emit once all rosters are processed
+      req.app.get("io").emit("statsUpdated", { message: "Rosters and scores updated" });
   
       res.status(200).json({ message: "Rosters updated successfully." });
     } catch (err) {
