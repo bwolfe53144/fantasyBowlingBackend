@@ -16,6 +16,7 @@ const indexRouter = require("./routes/indexRouter");
 
 const app = express();
 
+// --------------------- CORS SETUP ---------------------
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:5173",
@@ -36,16 +37,16 @@ app.use(cors({
 
 app.options("*", cors());
 
+// --------------------- EXPRESS SETUP ---------------------
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use("/", indexRouter);
 
 app.get("/", (req, res) => res.send("🤖 Backend is online"));
 
-// Create HTTP server from express app
+// --------------------- HTTP SERVER & SOCKET.IO ---------------------
 const server = http.createServer(app);
 
-// --------------------- SOCKET.IO SETUP ---------------------
 const { Server } = require("socket.io");
 const io = new Server(server, {
   cors: {
@@ -55,10 +56,10 @@ const io = new Server(server, {
   },
 });
 
-// Attach io to app so controllers can access it
+// Make `io` accessible in controllers
 app.set("io", io);
 
-// Optional: log when clients connect
+// Optional: log connections
 io.on("connection", (socket) => {
   console.log(`Client connected: ${socket.id}`);
   socket.on("disconnect", () => {
@@ -66,8 +67,8 @@ io.on("connection", (socket) => {
   });
 });
 
-// Setup draft server with sockets
-setupDraftServer(server, app);
+// Pass `io` into draft server instead of creating another instance
+setupDraftServer(server, app, io);
 
 // --------------------- CRON JOBS ---------------------
 cron.schedule("1 7 * * *", async () => {
