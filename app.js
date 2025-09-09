@@ -45,10 +45,31 @@ app.get("/", (req, res) => res.send("🤖 Backend is online"));
 // Create HTTP server from express app
 const server = http.createServer(app);
 
+// --------------------- SOCKET.IO SETUP ---------------------
+const { Server } = require("socket.io");
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
+
+// Attach io to app so controllers can access it
+app.set("io", io);
+
+// Optional: log when clients connect
+io.on("connection", (socket) => {
+  console.log(`Client connected: ${socket.id}`);
+  socket.on("disconnect", () => {
+    console.log(`Client disconnected: ${socket.id}`);
+  });
+});
+
 // Setup draft server with sockets
 setupDraftServer(server, app);
 
-// Your cron jobs as usual
+// --------------------- CRON JOBS ---------------------
 cron.schedule("1 7 * * *", async () => {
   await resolveExpiredClaims();
 });
@@ -62,5 +83,6 @@ cron.schedule("1 19 * * *", async () => {
   await lockSurvivorLineups();
 });
 
+// --------------------- START SERVER ---------------------
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
