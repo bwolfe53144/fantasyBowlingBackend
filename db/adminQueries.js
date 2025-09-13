@@ -136,36 +136,8 @@ async function clearAllPlayerTeams() {
   
     await prisma.match.createMany({ data: schedule });
   
-    // 🔹 only grab players from Inner City
-    const innerCityPlayers = await prisma.player.findMany({
-      where: { league: "Inner City" },
-      include: { weekScores: true },
-    });
-  
-    const updates = innerCityPlayers.map((player) => {
-      const scores = player.weekScores;
-      const allGames = scores.flatMap(s => [s.game1 || 0, s.game2 || 0, s.game3 || 0]);
-      const totalGames = allGames.filter(g => g > 0).length;
-      const totalPins = allGames.reduce((acc, val) => acc + val, 0);
-      const avg = totalGames > 0 ? (totalPins / totalGames).toFixed(2) : null;
-      const totalFantasyPoints = Array.isArray(scores)
-        ? scores.reduce((sum, ws) => sum + calculateFantasyPoints([ws]), 0).toFixed(2)
-        : "0.00";
-  
-      return prisma.player.update({
-        where: { id: player.id },
-        data: {
-          lyGames: totalGames.toString(),
-          lyAverage: avg ? avg.toString() : null,
-          lyPoints: totalFantasyPoints.toString(),
-        },
-      });
-    });
-  
-    await Promise.all(updates);
-  
     return {
-      message: "Schedule created and Inner City player stats updated",
+      message: "Schedule created",
       weeksScheduled: weeks - skipWeeks.length - 3,
       totalMatchups: schedule.length,
       skippedWeeks: skipWeeks,
