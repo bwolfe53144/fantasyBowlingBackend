@@ -136,11 +136,13 @@ async function clearAllPlayerTeams() {
   
     await prisma.match.createMany({ data: schedule });
   
-    const allPlayers = await prisma.player.findMany({
+    // 🔹 only grab players from Inner City
+    const innerCityPlayers = await prisma.player.findMany({
+      where: { league: "Inner City" },
       include: { weekScores: true },
     });
   
-    const updates = allPlayers.map((player) => {
+    const updates = innerCityPlayers.map((player) => {
       const scores = player.weekScores;
       const allGames = scores.flatMap(s => [s.game1 || 0, s.game2 || 0, s.game3 || 0]);
       const totalGames = allGames.filter(g => g > 0).length;
@@ -163,7 +165,7 @@ async function clearAllPlayerTeams() {
     await Promise.all(updates);
   
     return {
-      message: "Schedule created and player stats updated",
+      message: "Schedule created and Inner City player stats updated",
       weeksScheduled: weeks - skipWeeks.length - 3,
       totalMatchups: schedule.length,
       skippedWeeks: skipWeeks,
