@@ -6,7 +6,7 @@ function setupDraftServer(server, app, io) {
   const INACTIVE_TIMER = 2;
 
   const draftOrderBase = [
-    { name: "Spare No One	", skipRounds: [{ round: 15, position: "4", name: "Tina Beltran" }] },
+    { name: "Spare No One", skipRounds: [{ round: 15, position: "4", name: "Tina Beltran" }] },
     { name: "Bowling Stones", skipRounds: [{ round: 15, position: "1", name: "Jenn Jacoby" }] },
     { name: "Hell’s Kitchen", skipRounds: [{ round: 15, position: "2", name: "Ethan Najarro" }] },
     { name: "Training Wheels & Strikes", skipRounds: [{ round: 15, position: "1", name: "Yahaira Beltran" }] },
