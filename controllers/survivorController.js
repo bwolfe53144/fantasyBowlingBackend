@@ -126,7 +126,7 @@ async function createSurvivorTeam(req, res) {
     const { league, week } = req.body;
   
     // Skip weeks 1 and 2
-    if (week < 3) {
+    if (week < 6) {
       console.log(`⏭ Skipping survivor completion for week ${week} (before week 3).`);
       return res.json({ success: true, message: "Survivor completion starts from week 3." });
     }
