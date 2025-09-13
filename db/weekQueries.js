@@ -475,6 +475,37 @@ async function findWeekScoresByWeek(week) {
   });
 }
 
+async function findCurrentWeekForLeague(league) {
+  if (!league) throw new Error("Missing league parameter");
+
+  // Get all week locks for the league, ordered by week and lockTime
+  const leagueLocks = await prisma.weekLock.findMany({
+    where: { league },
+    orderBy: [
+      { week: "asc" },
+      { lockTime: "asc" },
+    ],
+  });
+
+  if (leagueLocks.length === 0) return null;
+
+  const now = new Date();
+  const weeks = [...new Set(leagueLocks.map(wl => wl.week))].sort((a, b) => a - b);
+
+  let currentWeek;
+  for (const week of weeks) {
+    const entries = leagueLocks.filter(wl => wl.week === week);
+    const lockedCount = entries.filter(e => e.lockTime <= now).length;
+    if (lockedCount < entries.length) {
+      currentWeek = week;
+      break;
+    }
+  }
+
+  if (!currentWeek) currentWeek = weeks[weeks.length - 1]; // fallback to last week
+  return currentWeek;
+}
+
 module.exports = {
   completeWeekLock,
   createWeekScore,
@@ -486,4 +517,5 @@ module.exports = {
   findMatchupsByWeek,
   findWeekScoresByWeek,
   getAllWeekScores,
+  findCurrentWeekForLeague, 
 };

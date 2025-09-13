@@ -163,6 +163,19 @@ async function getWeeks(req, res) {
   }
 }
 
+async function getLeagueCurrentWeek(req, res) {
+  const { league } = req.params;
+  if (!league) return res.status(400).json({ error: "Missing league parameter" });
+
+  try {
+    const currentWeek = await db.findCurrentWeekForLeague(league);
+    res.json({ currentWeek });
+  } catch (error) {
+    console.error("Error fetching current week for league:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 module.exports = {
   completeWeekLock, 
   findCompletedLeagues, 
@@ -173,4 +186,5 @@ module.exports = {
   getIncompleteWeeklocks, 
   getWeeks,  
   submitWeekScore, 
+  getLeagueCurrentWeek,
 };
