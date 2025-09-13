@@ -22,7 +22,6 @@ function setupDraftServer(server, app, io) {
     { name: "Dewbertz", skipRounds: [{ round: 4, position: "3", name: "Dustin Jacoby" }] },
     { name: "Pinsanity", skipRounds: [{ round: 3, position: "5", name: "Ben Barhyte" }] },
     { name: "Shirts Off", skipRounds: [{ round: 3, position: "4", name: "Chris Graham" }] },
-    { name: "Bowlyfans", skipRounds: [{ round: 3, position: "5", name: "Mark Moran" }] },
     { name: "My Imaginary Friends", skipRounds: [{ round: 1, position: "1", name: "Mike Tumeo" }, { round: 3, position: "5", name: "Mike Tumeo" }] },
     { name: "Erik B's Team", skipRounds: [{ round: 2, position: "1", name: "Eric Brenneman" }] },
     { name: "Waddle You Doing Step Burrow", skipRounds: [{ round: 2, position: "5", name: "Zak Eidsor" }] },
