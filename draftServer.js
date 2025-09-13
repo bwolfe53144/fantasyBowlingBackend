@@ -6,24 +6,29 @@ function setupDraftServer(server, app, io) {
   const INACTIVE_TIMER = 2;
 
   const draftOrderBase = [
+    { name: "Spare No One	", skipRounds: [{ round: 15, position: "4", name: "Tina Beltran" }] },
     { name: "Bowling Stones", skipRounds: [{ round: 15, position: "1", name: "Jenn Jacoby" }] },
-    { name: "Lisa's Team", skipRounds: [{ round: 15, position: "5", name: "Lisa Brenneman" }] },
     { name: "Hell’s Kitchen", skipRounds: [{ round: 15, position: "2", name: "Ethan Najarro" }] },
-    { name: "Gutter Control", skipRounds: [] },
+    { name: "Training Wheels & Strikes", skipRounds: [{ round: 15, position: "1", name: "Yahaira Beltran" }] },
+    /*{ name: "Lisa's Team", skipRounds: [{ round: 15, position: "5", name: "Lisa Brenneman" }] },*/
     { name: "Go Packers Go", skipRounds: [{ round: 15, position: "1", name: "Josh Clark" }] },
-    { name: "Bergernation", skipRounds: [{ round: 11, position: "5", name: "Brad Berger" }] },
-    { name: "Joel Jr's Team", skipRounds: [{ round: 11, position: "1", name: "Joel Oechler Jr" }] },
-    { name: "The Takeover", skipRounds: [{ round: 9, position: "2", name: "Tyrone Wade" }] },
+    { name: "Gutter Control", skipRounds: [] },
+    { name: "The Rican Rollers", skipRounds: [] },
+    { name: "Team Thomas", skipRounds: [{ round: 12, position: "2", name: "Thomas Bryant" }] },
+    /*{ name: "Bergernation", skipRounds: [{ round: 11, position: "5", name: "Brad Berger" }] },*/
+    { name: "Da Bears", skipRounds: [{ round: 11, position: "1", name: "Joel Oechler Jr" }] },
+    { name: "Down And Dirty", skipRounds: [{ round: 9, position: "2", name: "Tyrone Wade" }] },
     { name: "The Wolf Pack", skipRounds: [{ round: 6, position: "2", name: "Brian Wolfe" }, { round: 7, position: "5", name: "Brian Wolfe" }] },
-    { name: "Scott's Team", skipRounds: [{ round: 6, position: "5", name: "Scott Stine" }] },
+    /*{ name: "Scott's Team", skipRounds: [{ round: 6, position: "5", name: "Scott Stine" }] },*/
+    { name: "Strikes Away", skipRounds: [{ round: 5, position: "5", name: "Darrell Sennholz" }] },
     { name: "Iconic Ink", skipRounds: [{ round: 4, position: "5", name: "William Dillon" }, { round: 6, position: "3", name: "William Dillon" }] },
-    { name: "Greg's Team", skipRounds: [{ round: 5, position: "5", name: "Greg Sternbach" }] },
-    { name: "My Drinking Team", skipRounds: [{ round: 4, position: "4", name: "Kevin Arriaga" }] },
+    { name: "Rainmaker Fishing", skipRounds: [{ round: 5, position: "5", name: "Greg Sternbach" }] },
+    { name: "My Drinking Team Has A Bowling Problem", skipRounds: [{ round: 4, position: "4", name: "Kevin Arriaga" }] },
     { name: "Dewbertz", skipRounds: [{ round: 4, position: "3", name: "Dustin Jacoby" }] },
     { name: "Pinsanity", skipRounds: [{ round: 3, position: "5", name: "Ben Barhyte" }] },
-    { name: "Shirts Off", skipRounds: [{ round: 3, position: "4", name: "Chris Graham" }] },
-    { name: "My Imaginary Friends", skipRounds: [{ round: 1, position: "1", name: "Mike Tumeo" }, { round: 3, position: "5", name: "Mike Tumeo" }] },
-    { name: "Erik B's Team", skipRounds: [{ round: 2, position: "1", name: "Eric Brenneman" }] },
+    /*{ name: "Shirts Off", skipRounds: [{ round: 3, position: "4", name: "Chris Graham" }] },*/
+    { name: "My Imaginary Friends", skipRounds: [{ round: 1, position: "1", name: "Mike Tumeo" }, { round: 2, position: "5", name: "Mike Tumeo" }] },
+    /*{ name: "Erik B's Team", skipRounds: [{ round: 2, position: "1", name: "Eric Brenneman" }] },*/
     { name: "Waddle You Doing Step Burrow", skipRounds: [{ round: 2, position: "5", name: "Zak Eidsor" }] },
     { name: "Poblo", skipRounds: [{ round: 1, position: "1", name: "Poblo" }, { round: 2, position: "4", name: "Poblo" }] },
   ];
