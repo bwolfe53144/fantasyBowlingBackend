@@ -16,7 +16,7 @@ function setupDraftServer(server, app, io) {
     { name: "The Rican Rollers", skipRounds: [] },
     { name: "Team Thomas", skipRounds: [{ round: 12, position: "2", name: "Thomas Bryant" }] },
     /*{ name: "Bergernation", skipRounds: [{ round: 11, position: "5", name: "Brad Berger" }] },*/
-    { name: "Da Bears", skipRounds: [{ round: 11, position: "1", name: "Joel Oechler Jr" }, { round: 12, position: "4", name: "Joel Oechler Jr" }] },
+    { name: "The Dude Abides", skipRounds: [{ round: 11, position: "1", name: "Joel Oechler Jr" }, { round: 12, position: "4", name: "Joel Oechler Jr" }] },
     { name: "Down And Dirty", skipRounds: [{ round: 9, position: "2", name: "Tyrone Wade" }] },
     { name: "Kendall's Team", skipRounds: [{ round: 9, position: "2", name: "Tyrone Wade" }] },
     { name: "The Wolf Pack", skipRounds: [{ round: 6, position: "5", name: "Brian Wolfe" }, { round: 7, position: "2", name: "Brian Wolfe" }] },
