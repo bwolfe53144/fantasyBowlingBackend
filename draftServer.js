@@ -33,6 +33,8 @@ function setupDraftServer(server, app, io) {
     { name: "Poblo", skipRounds: [{ round: 1, position: "1", name: "Poblo" }, { round: 2, position: "4", name: "Poblo" }] },
   ];
 
+  const EXCLUDED_AUTODRAFT_PLAYERS = ["Ty Wade", "Kendall Logan"];
+
   const totalRounds = 15;
   const draftOrder = [];
 
@@ -269,15 +271,16 @@ function setupDraftServer(server, app, io) {
     if (draftState.inactiveTeams.has(currentPick.name)) {
       const positionsDrafted = getPositionsDraftedThisCycle(currentPick.name, currentPick.round);
       const playerToPick = draftState.allPlayers
-        .filter(p =>
-          !draftState.draftedPlayers.some(d => d.playerId === p.id) &&
-          !p.teamId &&
-          fantasyLeagues.includes(p.league) &&
-          p.position !== "flex" &&
-          (p.lyGames >= MIN_GAMES_LAST_YEAR && (p.games ?? 0) >= MIN_GAMES_THIS_YEAR) &&
-          !positionsDrafted.includes(p.position)
-        )
-        .sort((a, b) => b.lyAverage - a.lyAverage)[0];
+      .filter(p =>
+        !draftState.draftedPlayers.some(d => d.playerId === p.id) &&
+        !p.teamId &&
+        fantasyLeagues.includes(p.league) &&
+        p.position !== "flex" &&
+        (p.lyGames >= MIN_GAMES_LAST_YEAR && (p.games ?? 0) >= MIN_GAMES_THIS_YEAR) &&
+        !positionsDrafted.includes(p.position) &&
+        !EXCLUDED_AUTODRAFT_PLAYERS.includes(p.name)   // 🚫 exclude these only in autodraft
+      )
+      .sort((a, b) => b.lyAverage - a.lyAverage)[0];
 
       if (playerToPick) {
         draftState.draftedPlayers.push({
