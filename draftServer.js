@@ -21,7 +21,7 @@ function setupDraftServer(server, app, io) {
     { name: "Kendall's Team", skipRounds: [{ round: 9, position: "2", name: "Tyrone Wade" }] },
     { name: "The Wolf Pack", skipRounds: [{ round: 6, position: "5", name: "Brian Wolfe" }, { round: 7, position: "2", name: "Brian Wolfe" }] },
     { name: "Packer Slayer", skipRounds: [{ round: 6, position: "5", name: "Scott Stine" }] },
-    { name: "David's Team", skipRounds: [{ round: 9, position: "2", name: "David Santiago" }] },
+    { name: "Split Lickers", skipRounds: [{ round: 9, position: "2", name: "David Santiago" }] },
     { name: "Strikes Away", skipRounds: [{ round: 4, position: "5", name: "Darrell Sennholz" }, { round: 5, position: "4", name: "Darrell Sennholz" }] },
     { name: "Iconic Ink", skipRounds: [{ round: 4, position: "5", name: "William Dillon" }, { round: 6, position: "3", name: "William Dillon" }] },
     { name: "Rainmaker Fishing", skipRounds: [{ round: 5, position: "5", name: "Greg Sternbach" }] },
