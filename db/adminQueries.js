@@ -116,6 +116,7 @@ async function clearAllPlayerTeams() {
   
     await prisma.match.deleteMany({ where: { season } });
     await rosterDB.resetTeamStats();
+    await prisma.roster.deleteMany();
   
     const playoffWeeks = new Set([weeks - 2, weeks - 1, weeks]);
     const roundRobinWeeks = generateRoundRobinWeeks(teams);
