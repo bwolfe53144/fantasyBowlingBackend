@@ -72,6 +72,7 @@ async function createRosterEntry({ week, teamId, playerId, position }) {
 }
 
 async function upsertRosterEntries(entries) {
+  console.log(entries)
   const batchSize = 10;
   for (let i = 0; i < entries.length; i += batchSize) {
     const batch = entries.slice(i, i + batchSize);
