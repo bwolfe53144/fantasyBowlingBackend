@@ -72,7 +72,15 @@ setupDraftServer(server, app, io);
 
 // --------------------- CRON JOBS ---------------------
 cron.schedule("1 7 * * *", async () => {
-  await resolveExpiredClaims();
+  console.log("Running resolveExpiredClaims job...");
+  try {
+    await resolveExpiredClaims();
+    // ✅ Notify clients once all claims are resolved
+    io.emit("statsUpdated", { message: "Claims resolved, rosters and stats updated" });
+    console.log("Claims resolved and update broadcasted");
+  } catch (err) {
+    console.error("Error resolving expired claims:", err);
+  }
 });
 cron.schedule("1 18 * * *", async () => {
   await lockSurvivorLineups();
