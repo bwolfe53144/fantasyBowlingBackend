@@ -49,6 +49,8 @@ async function getPlayers(req, res) {
       await db.dropPlayer(playerId, teamId);
       await db.clearPlayerRosters(playerId, teamId, unlockedWeeks);
   
+      req.app.get("io").emit("statsUpdated", { message: "Player dropped and rosters updated" });
+  
       res.json({ success: true });
     } catch (err) {
       console.error("Error in dropMyPlayer:", err);
