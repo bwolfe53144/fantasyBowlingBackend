@@ -117,6 +117,7 @@ async function clearWeekscores(req, res) {
     }
 
     const result = await db.clearWeekScores(league);
+    req.app.get("io").emit("statsUpdated", { message: `Weekscores for league '${league}' cleared` });
 
     res.status(200).json({
       message: `Weekscores for league '${league}' cleared successfully`,
