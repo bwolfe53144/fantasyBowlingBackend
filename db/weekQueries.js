@@ -506,6 +506,33 @@ async function findCurrentWeekForLeague(league) {
   return currentWeek;
 }
 
+async function getWeekLocks(week) {
+  if (!week) throw new Error("Week is required");
+
+  const locks = await prisma.weekLock.findMany({
+    where: { week },
+    select: {
+      league: true,
+      lockTime: true,
+    },
+  });
+
+  return locks.map(lock => {
+    if (!lock.lockTime) return lock;
+
+    // Get the offset between UTC and Central Time in minutes
+    const centralOffsetMinutes = new Date(lock.lockTime).toLocaleString("en-US", { timeZone: "America/Chicago", hour12: false });
+    
+    // Alternatively, just use Date object and compute offset directly
+    const utcTime = new Date(lock.lockTime).getTime();
+    const centralTime = new Date(utcTime + new Date().getTimezoneOffset() * 60000); // rough offset
+    return {
+      ...lock,
+      lockTime: centralTime,
+    };
+  });
+}
+
 module.exports = {
   completeWeekLock,
   createWeekScore,
@@ -517,5 +544,6 @@ module.exports = {
   findMatchupsByWeek,
   findWeekScoresByWeek,
   getAllWeekScores,
-  findCurrentWeekForLeague, 
+  findCurrentWeekForLeague,
+  getWeekLocks, 
 };

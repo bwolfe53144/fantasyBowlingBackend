@@ -176,6 +176,24 @@ async function getLeagueCurrentWeek(req, res) {
   }
 }
 
+async function getSpecificWeekLocks(req, res) {
+  try {
+    const { week } = req.params;
+
+    if (!week) return res.status(400).json({ error: "Week query parameter is required" });
+
+    const weekNumber = parseInt(week, 10);
+    if (isNaN(weekNumber)) return res.status(400).json({ error: "Invalid week number" });
+
+    const locks = await db.getWeekLocks(weekNumber);
+
+    return res.json(locks);
+  } catch (err) {
+    console.error("Error fetching week locks:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
 module.exports = {
   completeWeekLock, 
   findCompletedLeagues, 
@@ -187,4 +205,5 @@ module.exports = {
   getWeeks,  
   submitWeekScore, 
   getLeagueCurrentWeek,
+  getSpecificWeekLocks,
 };
