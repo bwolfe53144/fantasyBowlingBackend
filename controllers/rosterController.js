@@ -30,27 +30,63 @@ async function changeRoster(req, res) {
     }
   
     try {
-      for (const roster of rosters) {
+      // Find the latest week in the uploaded rosters
+      const targetWeek = Math.max(...rosters.map(r => r.week));
+      const latestRosters = rosters.filter(r => r.week === targetWeek);
+  
+      const updatedPlayerIds = new Set();
+  
+      for (const roster of latestRosters) {
         const { players, teamId, week } = roster;
         if (!players || !teamId || week === undefined) continue;
   
-        await db.deleteRosterByTeamAndWeek(teamId, week);
+        // Fetch existing roster for this team/week
+        const existingRoster = await db.getRosterForTeamAndWeek(teamId, week);
+        const existingMap = new Map(existingRoster.map(p => [p.playerId, p.position]));
   
-        const createPromises = players.map(player =>
-          db.createRosterEntry({
-            week,
-            teamId,
-            playerId: player.playerId,
-            position: player.position,
-          })
-        );
-        await Promise.all(createPromises);
+        const promises = [];
+  
+        // Upsert new or changed players
+        for (const player of players) {
+          const existingPosition = existingMap.get(player.playerId);
+          if (!existingPosition || existingPosition !== player.position) {
+            promises.push(
+              db.upsertRosterEntries([{
+                week,
+                teamId,
+                playerId: player.playerId,
+                position: player.position,
+              }])
+            );
+            updatedPlayerIds.add(player.playerId);
+          }
+        }
+  
+        // Remove players no longer in roster
+        for (const existingPlayer of existingRoster) {
+          if (!players.some(p => p.playerId === existingPlayer.playerId)) {
+            promises.push(db.deleteRosterByPlayer(existingPlayer.playerId, teamId, week));
+            updatedPlayerIds.add(existingPlayer.playerId);
+          }
+        }
+  
+        await Promise.all(promises);
       }
   
-      // ✅ Emit once all rosters are processed
-      req.app.get("io").emit("statsUpdated", { message: "Rosters and scores updated" });
+      // Emit only if there are updates
+      if (updatedPlayerIds.size > 0) {
+        req.app.get("io").emit("statsUpdated", {
+          message: "Rosters updated",
+          playerIds: Array.from(updatedPlayerIds),
+        });
+      }
   
-      res.status(200).json({ message: "Rosters updated successfully." });
+      res.status(200).json({
+        message: "Rosters updated successfully.",
+        updated: updatedPlayerIds.size,
+        week: targetWeek,
+      });
+  
     } catch (err) {
       console.error("Error updating rosters:", err);
       res.status(500).json({ error: "Failed to update rosters." });
