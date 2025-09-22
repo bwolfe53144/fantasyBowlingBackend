@@ -209,6 +209,35 @@ async function getUnlockedWeeks() {
   return { unlockedWeeks, lockedWeeks };
 }
 
+async function getRostersWithScoresForWeek(week) {
+  if (isNaN(week)) throw new Error("Invalid week");
+
+  return prisma.roster.findMany({
+    where: { week },
+    include: {
+      player: {
+        include: {
+          weekScores: {
+            where: { week },
+          },
+        },
+      },
+      team: {
+        select: {
+          id: true,
+          name: true,
+          wins: true,
+          losses: true,
+          ties: true,
+          owner: {
+            select: { avatarUrl: true },
+          },
+        },
+      },
+    },
+  });
+}
+
 module.exports = {
   findRosterByTeamAndWeek,
   getRosterForTeamAndWeek,
@@ -224,4 +253,5 @@ module.exports = {
   resetPlayerPositions,
   setPlayerPositions,
   getUnlockedWeeks,
+  getRostersWithScoresForWeek,
 };

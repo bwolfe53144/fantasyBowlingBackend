@@ -295,6 +295,22 @@ async function changeRoster(req, res) {
     }
   };
 
+ async function getRostersWithScoresForTheWeek(req, res) {
+    const week = parseInt(req.params.week, 10);
+  
+    if (isNaN(week)) {
+      return res.status(400).json({ error: "Invalid week parameter" });
+    }
+  
+    try {
+      const rosters = await db.getRostersWithScoresForWeek(week);
+      res.status(200).json(rosters);
+    } catch (err) {
+      console.error("Failed to fetch rosters with scores:", err);
+      res.status(500).json({ error: "Failed to fetch rosters with scores" });
+    }
+  }
+
   module.exports = {
     changeRoster,  
     changeMultipleRosters, 
@@ -306,4 +322,5 @@ async function changeRoster(req, res) {
     getRoster, 
     getAllRosters, 
     findRostersForTheWeek, 
+    getRostersWithScoresForTheWeek,
   };
