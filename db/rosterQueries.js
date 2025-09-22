@@ -136,13 +136,42 @@ async function limitConcurrency(tasks, limit) {
   return Promise.all(results);
 }
 
+async function getUnlockedWeeks() {
+  const now = new Date();
+
+  // Get all week locks grouped by week
+  const allWeekLocks = await prisma.weekLock.findMany({
+    select: { week: true, lockTime: true },
+  });
+
+  // Group locks by week
+  const weekGroups = {};
+  for (const { week, lockTime } of allWeekLocks) {
+    if (!weekGroups[week]) weekGroups[week] = [];
+    weekGroups[week].push(lockTime);
+  }
+
+  // Only return weeks where **all leagues are unlocked**
+  const unlockedWeeks = Object.entries(weekGroups)
+    .filter(([_, lockTimes]) => lockTimes.every(lockTime => now < lockTime))
+    .map(([week]) => Number(week));
+
+  return unlockedWeeks;
+}
+
 async function setPlayerPositions(teamId, players) {
-  const { unlockedWeeks, lockedWeeks } = await getUnlockedWeeks();
+  const unlockedWeeks = await getUnlockedWeeks();
+  console.log(unlockedWeeks);
+
+  if (!unlockedWeeks.length) {
+    return { error: "All weeks are locked. Cannot set positions." };
+  }
 
   try {
     const tasks = [];
 
     for (const player of players) {
+      // Update the player's "setPosition" field
       tasks.push(() =>
         prisma.player.update({
           where: { id: player.playerId },
@@ -150,18 +179,16 @@ async function setPlayerPositions(teamId, players) {
         })
       );
 
-      for (const unlockedWeek of unlockedWeeks) {
+      // Update roster for all unlocked weeks
+      for (const week of unlockedWeeks) {
         tasks.push(() =>
           prisma.roster.upsert({
             where: {
-              week_playerId: {
-                week: unlockedWeek,
-                playerId: player.playerId,
-              },
+              week_playerId: { week, playerId: player.playerId },
             },
             update: { position: player.setPosition },
             create: {
-              week: unlockedWeek,
+              week,
               position: player.setPosition,
               playerId: player.playerId,
               teamId,
@@ -174,39 +201,14 @@ async function setPlayerPositions(teamId, players) {
     // Limit concurrency to 4 simultaneous DB calls
     await limitConcurrency(tasks, 4);
 
-    console.log("All operations successful");
-
     return {
       success: true,
       updatedWeeks: unlockedWeeks,
-      skippedWeeks: lockedWeeks,
     };
   } catch (error) {
     console.error("Error during setPlayerPositions:", error);
     return { error: "Failed to set player positions." };
   }
-}
-
-// Lock Time Helpers
-async function getUnlockedWeeks() {
-  const now = new Date();
-
-  const allWeekLocks = await prisma.weekLock.findMany({
-    select: { week: true, lockTime: true },
-  });
-
-  const unlockedWeeks = [];
-  const lockedWeeks = [];
-
-  for (const { week, lockTime } of allWeekLocks) {
-    if (now > lockTime) {
-      lockedWeeks.push(week);
-    } else {
-      unlockedWeeks.push(week);
-    }
-  }
-
-  return { unlockedWeeks, lockedWeeks };
 }
 
 async function getRostersWithScoresForWeek(week) {
