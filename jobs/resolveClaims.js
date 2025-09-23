@@ -76,17 +76,40 @@ async function resolveExpiredClaims() {
             unlockedWeeks
           );
 
-          await prisma.claimant.deleteMany({
+          // Find all duplicate claims by this team dropping the same player
+          const duplicateClaims = await prisma.playerClaim.findMany({
             where: {
-              dropPlayerId: droppedPlayer.id,
+              claimants: {
+                some: {
+                  user: { teamId: winner.user.team.id },
+                  dropPlayerId: droppedPlayer.id,
+                },
+              },
             },
+            include: { player: true },
           });
+
+          for (const dup of duplicateClaims) {
+            // Remove claimants
+            await prisma.claimant.deleteMany({
+              where: { claimId: dup.id },
+            });
+
+            // Remove the claim itself
+            await prisma.playerClaim.delete({
+              where: { id: dup.id },
+            });
+
+            console.log(
+              `Removed duplicate claim for ${dup.player.name} by team ${winner.user.team.name} (drop ${droppedPlayer.name})`
+            );
+          }
 
           console.log(`Dropped player ${droppedPlayer.name} from team ${winner.user.team.name}`);
         }
       }
 
-      // Clean up claims
+      // Clean up this resolved claim
       await prisma.claimant.deleteMany({
         where: { claimId: claim.id },
       });
