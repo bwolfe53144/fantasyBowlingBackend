@@ -76,36 +76,24 @@ async function resolveExpiredClaims() {
             unlockedWeeks
           );
 
-          // Find all duplicate claims by this team dropping the same player
-          const duplicateClaims = await prisma.playerClaim.findMany({
+          console.log(`Dropped player ${droppedPlayer.name} from team ${winner.user.team.name}`);
+
+          // Delete all other claims (excluding current claim) that include this dropped player
+          const otherClaimsWithDroppedPlayer = await prisma.playerClaim.findMany({
             where: {
+              id: { not: claim.id }, // exclude the winning claim
               claimants: {
-                some: {
-                  user: { teamId: winner.user.team.id },
-                  dropPlayerId: droppedPlayer.id,
-                },
+                some: { dropPlayerId: droppedPlayer.id },
               },
             },
-            include: { player: true },
+            include: { claimants: true, player: true },
           });
 
-          for (const dup of duplicateClaims) {
-            // Remove claimants
-            await prisma.claimant.deleteMany({
-              where: { claimId: dup.id },
-            });
-
-            // Remove the claim itself
-            await prisma.playerClaim.delete({
-              where: { id: dup.id },
-            });
-
-            console.log(
-              `Removed duplicate claim for ${dup.player.name} by team ${winner.user.team.name} (drop ${droppedPlayer.name})`
-            );
+          for (const c of otherClaimsWithDroppedPlayer) {
+            await prisma.claimant.deleteMany({ where: { claimId: c.id } });
+            await prisma.playerClaim.delete({ where: { id: c.id } });
+            console.log(`Removed claim ${c.id} for ${c.player.name} because it included dropped player ${droppedPlayer.name}`);
           }
-
-          console.log(`Dropped player ${droppedPlayer.name} from team ${winner.user.team.name}`);
         }
       }
 
