@@ -12,6 +12,7 @@ const pool = new Pool({
 
 const lockSurvivorLineups = require("./jobs/lockSurvivorLineups.js");
 const resolveExpiredClaims = require("./jobs/resolveClaims");
+const resolveTrades = require("./jobs/resolveTrades");
 const indexRouter = require("./routes/indexRouter");
 
 const app = express();
@@ -80,6 +81,17 @@ cron.schedule("1 7 * * *", async () => {
     console.log("Claims resolved and update broadcasted");
   } catch (err) {
     console.error("Error resolving expired claims:", err);
+  }
+});
+cron.schedule("1 7 * * *", async () => {
+  console.log("Running resolveTrades job...");
+  try {
+    await resolveTrades();
+    // ✅ Notify clients once all trades are processed
+    io.emit("statsUpdated", { message: "Trades resolved, rosters and stats updated" });
+    console.log("Trades resolved and update broadcasted");
+  } catch (err) {
+    console.error("Error resolving trades:", err);
   }
 });
 cron.schedule("1 18 * * *", async () => {

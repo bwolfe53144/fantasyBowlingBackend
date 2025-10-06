@@ -70,25 +70,26 @@ async function getPlayers(req, res) {
         }))
       );
   
-      const bowlingTeams = [...new Set(players.map((p) => p.bowlingTeam).filter(Boolean))];
       const leagues = [...new Set(players.map((p) => p.league))];
   
       const playerStatsTableFormat = players.map((p) => ({
         name: p.name,
         league: p.league,
-        bowlingTeam: p.bowlingTeam,
+        position: p.position,
+        id: p.id,
+        team: p.team || null,
         weekScores: p.weekScores.map((score) => ({
           ...score,
           league: p.league,
         })),
-        playerRank: p.playerRank || null, 
+        playerRank: p.playerRank || null,
         badges: p.badges || [],
+        tradePlayers: p.tradePlayers || [], // <-- add this
       }));
   
       res.json({
         name: playerName,
         leagues,
-        bowlingTeams,
         weekScores: allScores,
         players: playerStatsTableFormat,
       });

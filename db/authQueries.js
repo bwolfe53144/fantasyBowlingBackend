@@ -46,12 +46,45 @@ async function getUser(username) {
 
 // ✅ Get user by ID (including team and players)
 async function findUser(id) {
-  return prisma.user.findFirst({
+  return prisma.user.findUnique({
     where: { id },
     include: {
       team: {
         include: {
-          players: true,
+          players: {
+            include: {
+              tradePlayers: {
+                include: {
+                  trade: {
+                    select: {   // ← use select here
+                      status: true,
+                      fromTeam: { select: { id: true, name: true } },
+                      toTeam: { select: { id: true, name: true } },
+                    },
+                  },
+                },
+              },
+              claims: {
+                where: { resolved: false },
+                include: {
+                  claimants: {
+                    include: {
+                      user: true,
+                      dropPlayer: true,
+                    },
+                  },
+                },
+              },
+              dropClaimants: {
+                where: { claim: { resolved: false } },
+                include: {
+                  claim: true,
+                  user: true,
+                  dropPlayer: true,
+                },
+              },
+            },
+          },
         },
       },
     },

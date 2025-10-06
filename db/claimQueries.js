@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// PlayerClaim retrieval and creation 
+// PlayerClaim retrieval and creation
 async function getPlayerClaim(playerId) {
   return await prisma.playerClaim.findFirst({
     where: { playerId },
@@ -18,7 +18,6 @@ async function getPlayerClaim(playerId) {
   });
 }
 
-
 async function findOrCreatePlayerClaim({ playerId, expiresAt }) {
   let playerClaim = await prisma.playerClaim.findFirst({ where: { playerId } });
 
@@ -26,15 +25,14 @@ async function findOrCreatePlayerClaim({ playerId, expiresAt }) {
     playerClaim = await prisma.playerClaim.create({
       data: {
         playerId,
-        expiresAt, // use passed expiresAt
+        expiresAt,
       },
     });
   }
   return playerClaim;
 }
 
-// Claimant related functions 
-
+// Claimant related functions
 async function findClaimant(userId, claimId) {
   return await prisma.claimant.findUnique({
     where: {
@@ -65,7 +63,7 @@ async function deleteClaimants(claimId, userId) {
   });
 }
 
-// Utility functions 
+// Utility functions
 async function countClaimants(claimId) {
   return await prisma.claimant.count({
     where: { claimId },
@@ -78,8 +76,9 @@ async function deletePlayerClaim(claimId) {
   });
 }
 
+// Get all claims with safe null handling
 async function getAllClaims() {
-  return await prisma.playerClaim.findMany({
+  const claims = await prisma.playerClaim.findMany({
     include: {
       player: true,
       claimants: {
@@ -91,16 +90,23 @@ async function getAllClaims() {
       },
     },
   });
+
+  return claims.map(c => ({
+    playerId: c.playerId,
+    playerName: c.player?.name || null,
+    league: c.player?.league || null,
+    expiresAt: c.expiresAt,
+    teams: c.claimants.map(cl => cl.user?.team).filter(Boolean),
+    claimants: c.claimants.map(cl => cl.user).filter(Boolean),
+  }));
 }
 
-// Get all claims for a specific user by userId
+// Get all claims for a specific user safely
 async function getClaimsByUserId(userId) {
-  return await prisma.playerClaim.findMany({
+  const claims = await prisma.playerClaim.findMany({
     where: {
       claimants: {
-        some: {
-          userId,
-        },
+        some: { userId },
       },
     },
     include: {
@@ -114,6 +120,15 @@ async function getClaimsByUserId(userId) {
       },
     },
   });
+
+  return claims.map(c => ({
+    playerId: c.playerId,
+    playerName: c.player?.name || null,
+    league: c.player?.league || null,
+    expiresAt: c.expiresAt,
+    teams: c.claimants.map(cl => cl.user?.team).filter(Boolean),
+    claimants: c.claimants.map(cl => cl.user).filter(Boolean),
+  }));
 }
 
 module.exports = {

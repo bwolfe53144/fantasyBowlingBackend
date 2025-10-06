@@ -78,16 +78,19 @@ async function getTransactions(req, res) {
   const pageNumber = parseInt(page, 10);
   const pageSize = parseInt(limit, 10);
   const skip = (pageNumber - 1) * pageSize;
+
   try {
     const { totalCount, transactions } = await db.getPaginatedTransactions(skip, pageSize);
     const totalPages = Math.ceil(totalCount / pageSize);
+
     const formatted = transactions.map((tx) => ({
       id: tx.id,
-      playerName: tx.player.name,
-      teamName: tx.team.name,
+      playerName: tx.player?.name || "Unknown Player",
+      teamName: tx.team?.name || "Unknown Team",
       action: tx.action,
       timestamp: tx.timestamp,
     }));
+
     res.status(200).json({
       transactions: formatted,
       currentPage: pageNumber,

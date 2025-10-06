@@ -6,6 +6,11 @@ async function getAllPlayers() {
     include: {
       team: true,
       weekScores: true,
+      tradePlayers: {
+        include: {
+          trade: true,    
+        },
+      },
     },
   });
 }
@@ -53,49 +58,75 @@ async function createPlayer(name, league, teamId, position) {
 
 async function dropPlayer(playerId, teamId) {
   try {
-    // Fetch the player by ID
-    const player = await prisma.player.findUnique({
-      where: { id: playerId },
+    await prisma.$transaction(async (tx) => {
+      // 1️⃣ Fetch player
+      const player = await tx.player.findUnique({ where: { id: playerId } });
+      if (!player) throw new Error("Player not found");
+
+      // 2️⃣ Fetch team
+      const team = await tx.team.findUnique({
+        where: { id: teamId },
+        select: { name: true },
+      });
+      if (!team) throw new Error("Team not found");
+
+      // 3️⃣ Find all trades involving the dropped player
+      const tradesFromPlayers = await tx.tradePlayer.findMany({
+        where: { playerId },
+        select: { tradeId: true, trade: { select: { status: true } } },
+      });
+
+      const tradesFromDrops = await tx.tradeDrop.findMany({
+        where: { playerId },
+        select: { tradeId: true, trade: { select: { status: true } } },
+      });
+
+      // 4️⃣ Collect tradeIds for trades NOT accepted
+      const tradeIdsToDelete = [
+        ...tradesFromPlayers,
+        ...tradesFromDrops,
+      ]
+        .filter((t) => t.trade?.status !== "ACCEPTED")
+        .map((t) => t.tradeId);
+
+      if (tradeIdsToDelete.length > 0) {
+        // 5️⃣ Delete all TradePlayer and TradeDrop rows for these trades
+        await tx.tradePlayer.deleteMany({
+          where: { tradeId: { in: tradeIdsToDelete } },
+        });
+
+        await tx.tradeDrop.deleteMany({
+          where: { tradeId: { in: tradeIdsToDelete } },
+        });
+
+        // 6️⃣ Delete the trades themselves
+        await tx.trade.deleteMany({
+          where: { id: { in: tradeIdsToDelete } },
+        });
+      }
+
+      // 7️⃣ Disconnect player from team and clear position
+      await tx.player.update({
+        where: { id: playerId },
+        data: {
+          setPosition: "",
+          team: { disconnect: true },
+        },
+      });
+
+      // 8️⃣ Log the transaction
+      await tx.playerTransaction.create({
+        data: {
+          playerId,
+          playerName: player.name,
+          teamId,
+          teamName: team.name,
+          action: "drop",
+        },
+      });
     });
 
-    if (!player) {
-      throw new Error("Player not found");
-    }
-
-    // Fetch the team name
-    console.log("Attempting to drop player from team ID:", teamId);
-
-    const team = await prisma.team.findUnique({
-      where: { id: teamId },
-      select: { name: true },
-    });
-
-    if (!team) {
-      throw new Error("Team not found");
-    }
-
-    // Disconnect player from team and clear position
-    await prisma.player.update({
-      where: { id: playerId },
-      data: {
-        setPosition: "",
-        team: { disconnect: true },
-      },
-    });
-
-    console.log(`Player ${playerId} has been dropped successfully.`);
-
-    // Log the transaction
-    await prisma.playerTransaction.create({
-      data: {
-        playerId,
-        playerName: player.name,
-        teamId,
-        teamName: team.name,
-        action: "drop",
-      },
-    });
-
+    console.log(`Player ${playerId} dropped successfully along with related pending trades.`);
   } catch (error) {
     console.error("Error dropping player:", error);
     throw new Error("Failed to drop player");
@@ -113,20 +144,28 @@ async function clearPlayerRosters(playerId, teamId, unlockedWeeks) {
 }
 
 async function getUnlockedWeeks() {
-  const weeks = await prisma.weekLock.findMany({
-    where: {
-      lockTime: {
-        gt: new Date(),
-      },
-    },
-    select: {
-      week: true,
-    },
+  const weekLocks = await prisma.weekLock.findMany({
+    where: { lockTime: { gt: new Date() } },
+    select: { week: true },
   });
 
-  return {
-    unlockedWeeks: weeks.map(w => w.week),
-  };
+  if (weekLocks.length === 0) return { unlockedWeeks: [] };
+
+  // Count occurrences of each week
+  const weekCounts = {};
+  for (const w of weekLocks) {
+    weekCounts[w.week] = (weekCounts[w.week] || 0) + 1;
+  }
+
+  const maxCount = Math.max(...Object.values(weekCounts));
+
+  // Return all weeks that have the max count
+  const unlockedWeeks = Object.entries(weekCounts)
+    .filter(([_, count]) => count === maxCount)
+    .map(([week]) => parseInt(week))
+    .sort((a, b) => a - b);
+
+  return { unlockedWeeks };
 }
 
 async function getPlayerWithStatsByName(playerName) {
@@ -134,13 +173,32 @@ async function getPlayerWithStatsByName(playerName) {
     where: {
       name: {
         equals: playerName,
-        mode: 'insensitive',
+        mode: "insensitive",
       },
     },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      league: true,
+      position: true,
+      team: {
+        select: { name: true },
+      },
       weekScores: true,
       playerRank: true,
-      badges: true, 
+      badges: true,
+      tradePlayers: {
+        include: {
+          trade: {
+            select: {
+              id: true,
+              status: true,      
+              fromTeamId: true,
+              toTeamId: true,
+            },
+          },
+        },
+      },
     },
   });
 }

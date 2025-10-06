@@ -152,6 +152,24 @@ async function getUser(req, res) {
         const posB = isNaN(parseInt(b.position)) ? Infinity : parseInt(b.position);
         return posA - posB;
       });
+
+      // Serialize nested tradePlayers for frontend
+      user.team.players = user.team.players.map(player => ({
+        ...player,
+        tradePlayers: player.tradePlayers.map(tp => ({
+          id: tp.id,
+          playerId: tp.playerId,
+          tradeId: tp.tradeId,
+          role: tp.role,
+          trade: tp.trade
+            ? {
+                status: tp.trade.status,
+                fromTeam: tp.trade.fromTeam,
+                toTeam: tp.trade.toTeam,
+              }
+            : null,
+        })),
+      }));
     }
 
     res.json({ ...user, token });

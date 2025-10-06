@@ -54,35 +54,61 @@ async function getTeams() {
     const team = await prisma.team.findUnique({
       where: { name },
       include: {
+        owner: { select: { firstname: true, lastname: true } },
         players: {
-          include: { weekScores: true },
-        },
-        owner: {
-          select: {
-            firstname: true,
-            lastname: true,
+          include: {
+            weekScores: true,
+            tradePlayers: {
+              include: {
+                trade: {
+                  select: {
+                    id: true,
+                    status: true,
+                    fromTeam: { select: { id: true, name: true } },
+                    toTeam: { select: { id: true, name: true } },
+                  },
+                },
+              },
+            },
+            // Claims where this player is the claimed player
+            claims: {
+              include: {
+                claimants: {
+                  include: {
+                    user: true,
+                    dropPlayer: true,
+                  },
+                },
+              },
+            },
+            // Claims where this player is the dropped player
+            dropClaimants: {
+              include: {
+                claim: {
+                  include: {
+                    player: true,
+                    claimants: {
+                      include: {
+                        user: true,
+                        dropPlayer: true,
+                      },
+                    },
+                  },
+                },
+                user: true,
+                dropPlayer: true,
+              },
+            },
           },
         },
         team1Matches: {
-          include: {
-            team2: { select: { id: true, name: true } },
-          },
+          include: { team2: { select: { id: true, name: true } } },
         },
         team2Matches: {
-          include: {
-            team1: { select: { id: true, name: true } },
-          },
+          include: { team1: { select: { id: true, name: true } } },
         },
-        rosters: {
-          include: {
-            player: true,
-          },
-        },
-        transactions: {
-          include: {
-            player: true,
-          },
-        },
+        rosters: { include: { player: true } },
+        transactions: { include: { player: true } },
       },
     });
   
@@ -95,14 +121,28 @@ async function getTeams() {
     const { wins, losses, ties } = team;
     const record = ties > 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
   
-    const playersWithAverages = team.players.map((player) => {
+    const playersWithStats = team.players.map((player) => {
       const totalGames = player.weekScores.length;
-      const totalPoints = player.weekScores.reduce((sum, score) => sum + score.points, 0);
+      const totalPoints = player.weekScores.reduce((sum, s) => sum + s.points, 0);
       const averagePPG = totalGames > 0 ? (totalPoints / totalGames).toFixed(2) : 0;
-      return { ...player, totalGames, totalPoints, averagePPG, average: averagePPG };
+  
+      return {
+        ...player,
+        totalGames,
+        totalPoints,
+        averagePPG,
+        average: averagePPG,
+        unresolvedClaims: player.claims,          // claims where player is being claimed
+        dropUnresolvedClaims: player.dropClaimants, // claims where player is being dropped
+      };
     });
   
-    return { ...team, captain, record, players: playersWithAverages };
+    return {
+      ...team,
+      captain,
+      record,
+      players: playersWithStats,
+    };
   }
   
   async function getTeamById(teamId) {
@@ -253,6 +293,227 @@ async function getTeams() {
     });
   }
 
+  const getPlayerById = (id) => {
+    return prisma.player.findUnique({ where: { id } });
+  };
+  
+  // Get the roster for a team
+  const getTeamRoster = (teamId) => {
+    return prisma.player.findMany({
+      where: { teamId },
+      orderBy: { name: "asc" }, // optional, for consistent order
+    });
+  };
+  
+  // Create a new trade
+  const createTrade = ({ fromTeamId, toTeamId }) => {
+    return prisma.trade.create({
+      data: {
+        fromTeamId,
+        toTeamId,
+        status: "PENDING", 
+      },
+    });
+  };
+  
+  // Add multiple trade players (offered or requested)
+  const addTradePlayers = (players) => {
+    return prisma.tradePlayer.createMany({ data: players });
+  };
+  
+  // Add multiple trade drops (for roster balancing)
+  const addTradeDrops = (drops) => {
+    return prisma.tradeDrop.createMany({ data: drops });
+  };
+
+  const getAllTrades = async () => {
+    return prisma.trade.findMany({
+      include: {
+        fromTeam: true,
+        toTeam: true,
+        players: {
+          include: {
+            player: true, 
+          },
+        },
+        drops: {
+          include: {
+            player: true, 
+          },
+        },
+        votes: {
+          include: {
+            team: true, 
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+  };
+
+  const markTradeAsViewed = (tradeId) => {
+    return prisma.trade.update({
+      where: { id: tradeId },
+      data: { status: "VIEWED" }, 
+    });
+  };
+
+  async function getTradeById(id) {
+    return prisma.trade.findUnique({
+      where: { id },
+      include: {
+        fromTeam: true,
+        toTeam: true,
+        players: {
+          include: { player: true }
+        },
+        drops: {
+          include: {
+            player: true,  // <- include the Player object
+            team: true     // optional if you want the team info
+          }
+        },
+        votes: true
+      }
+    });
+  }
+  
+  async function acceptTrade(id) {
+    console.log("Accepting trade with ID:", id);
+  
+    // Fetch the trade with all related data
+    const trade = await prisma.trade.findUnique({
+      where: { id },
+      include: {
+        players: true,
+        drops: true,
+      },
+    });
+  
+    if (!trade) return null; // trade not found
+  
+    // Collect all involved player IDs (traded + dropped)
+    const playerIds = [
+      ...(trade.players?.map((p) => p.playerId) || []),
+      ...(trade.drops?.map((d) => d.playerId) || []),
+    ];
+  
+    return prisma.$transaction(async (prisma) => {
+      // 1️⃣ Mark this trade as accepted
+      const updatedTrade = await prisma.trade.update({
+        where: { id },
+        data: { status: "ACCEPTED" },
+        include: {
+          players: true,
+          drops: true,
+          votes: true,
+          fromTeam: true,
+          toTeam: true,
+        },
+      });
+  
+      if (playerIds.length > 0) {
+        // 2️⃣ Delete all other TradePlayer rows for these players (except current trade)
+        await prisma.tradePlayer.deleteMany({
+          where: {
+            playerId: { in: playerIds },
+            trade: { NOT: { id } },
+          },
+        });
+  
+        // 3️⃣ Delete all other trades containing these players (except current trade)
+        await prisma.trade.deleteMany({
+          where: {
+            players: { some: { playerId: { in: playerIds } } },
+            NOT: { id },
+          },
+        });
+  
+        // 4️⃣ Delete unresolved claims for these players, including dropped players
+        const claimsToDelete = await prisma.playerClaim.findMany({
+          where: {
+            resolved: false,
+            OR: [
+              { playerId: { in: playerIds } }, // claimed player
+              { claimants: { some: { dropPlayerId: { in: playerIds } } } }, // dropped players
+            ],
+          },
+          select: { id: true },
+        });
+  
+        const claimIds = claimsToDelete.map((c) => c.id);
+        if (claimIds.length > 0) {
+          // Delete related claimants first
+          await prisma.claimant.deleteMany({
+            where: { claimId: { in: claimIds } },
+          });
+  
+          // Then delete the claims
+          await prisma.playerClaim.deleteMany({
+            where: { id: { in: claimIds } },
+          });
+        }
+      }
+  
+      return updatedTrade;
+    });
+  }
+
+  async function declineTrade(id) {
+    const trade = await prisma.trade.findUnique({ where: { id } });
+    if (!trade) return null;
+  
+    return prisma.$transaction([
+      prisma.tradePlayer.deleteMany({ where: { tradeId: id } }),
+      prisma.tradeDrop.deleteMany({ where: { tradeId: id } }),
+      prisma.tradeVote.deleteMany({ where: { tradeId: id } }),
+      prisma.trade.delete({ where: { id } }),
+    ]);
+  }
+
+  async function findPendingTrade(fromTeamId, toTeamId) {
+    return prisma.trade.findFirst({
+      where: {
+        fromTeamId,
+        toTeamId,
+        status: "PENDING",
+      },
+    });
+  }
+
+  async function getPlayersInAcceptedTrades(playerIds) {
+    // Fetch TradePlayer rows where the trade is accepted
+    const blockedPlayers = await prisma.tradePlayer.findMany({
+      where: {
+        playerId: { in: playerIds },
+        trade: { status: "ACCEPTED" },
+      },
+      include: { player: true }, // include player info
+    });
+  
+    // Return just the player objects
+    return blockedPlayers.map(tp => tp.player);
+  }
+
+  async function castTradeVote(tradeId, teamId, approved) {
+    // Upsert ensures one vote per team per trade
+    return prisma.tradeVote.upsert({
+      where: {
+        tradeId_teamId: { tradeId, teamId },
+      },
+      update: {
+        approved,
+      },
+      create: {
+        tradeId,
+        teamId,
+        approved,
+      },
+    });
+  }
+
   module.exports = {
     getTeams,
     getTeamsForHome,
@@ -266,4 +527,17 @@ async function getTeams() {
     getTeamRanks,
     getDistinctPriorYears,
     getPriorYearStandingsByYear,
+    getPlayerById,
+    getTeamRoster,
+    createTrade,
+    addTradePlayers,
+    addTradeDrops,
+    getAllTrades,
+    markTradeAsViewed,
+    getTradeById,
+    acceptTrade,
+    declineTrade,
+    findPendingTrade,
+    getPlayersInAcceptedTrades,
+    castTradeVote,
   };

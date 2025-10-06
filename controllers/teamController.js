@@ -128,13 +128,14 @@ async function createTeam(req, res) {
   }
 
   async function getTeamRanks(req, res) {
-    const { league, teamName } = req.params; 
+    const { league, teamName } = req.params;
   
     try {
       const team = await db.getTeamRanks(teamName, league);
   
-      if (!team) {
-        return res.status(404).json({ error: "Team not found" });
+      // ✅ Instead of 404, return a normal response with rank: null
+      if (!team || team.rank == null) {
+        return res.json({ rank: null });
       }
   
       res.json({ rank: team.rank });
@@ -171,6 +172,177 @@ async function createTeam(req, res) {
     }
   }
 
+  async function proposeTrade(req, res) {
+    try {
+      const { fromTeamId, toTeamId, offeredPlayerIds = [], requestedPlayerIds = [], dropPlayerIds = [] } = req.body;
+  
+      if (!offeredPlayerIds.length || !requestedPlayerIds.length) {
+        return res.status(400).json({ error: "Must provide at least one offered and one requested player" });
+      }
+  
+      // Fetch rosters
+      const fromTeamRoster = await db.getTeamRoster(fromTeamId);
+      const toTeamRoster = await db.getTeamRoster(toTeamId);
+  
+      // Validate offered players
+      const invalidOffered = offeredPlayerIds.filter(pid => !fromTeamRoster.find(p => p.id === pid));
+      if (invalidOffered.length) {
+        return res.status(400).json({ error: "Some offered players do not belong to your team", invalidOffered });
+      }
+  
+      // Validate requested players
+      const invalidRequested = requestedPlayerIds.filter(pid => !toTeamRoster.find(p => p.id === pid));
+      if (invalidRequested.length) {
+        return res.status(400).json({ error: "Some requested players do not belong to the target team", invalidRequested });
+      }
+  
+      // Ensure valid drop logic
+      if (requestedPlayerIds.length > offeredPlayerIds.length && dropPlayerIds.length !== requestedPlayerIds.length - offeredPlayerIds.length) {
+        return res.status(400).json({
+          error: "Must select drop player(s) if requesting more players than offering",
+        });
+      }
+  
+      // ✅ Check for existing pending trade between these teams
+      const existingTrade = await db.findPendingTrade(fromTeamId, toTeamId);
+      if (existingTrade) {
+        return res.status(400).json({
+          error: "A pending trade already exists between these teams",
+          tradeId: existingTrade.id,
+        });
+      }
+  
+      // ✅ Check if any offered/requested players are already in pending or accepted trades
+      const allPlayerIds = [...offeredPlayerIds, ...requestedPlayerIds];
+      const blockedPlayers = await db.getPlayersInAcceptedTrades(allPlayerIds);
+      if (blockedPlayers.length > 0) {
+        return res.status(400).json({
+          error: "Some players are already involved in a trade",
+          players: blockedPlayers.map(p => p.name),
+        });
+      }
+  
+      // 1️⃣ Create trade
+      const trade = await db.createTrade({ fromTeamId, toTeamId });
+  
+      // 2️⃣ Add offered players
+      await db.addTradePlayers(offeredPlayerIds.map(pid => ({
+        tradeId: trade.id,
+        playerId: pid,
+        role: "OFFERED",
+      })));
+  
+      // 3️⃣ Add requested players
+      await db.addTradePlayers(requestedPlayerIds.map(pid => ({
+        tradeId: trade.id,
+        playerId: pid,
+        role: "REQUESTED",
+      })));
+  
+      // 4️⃣ Add drop players if provided
+      if (dropPlayerIds.length) {
+        await db.addTradeDrops(dropPlayerIds.map(pid => ({
+          tradeId: trade.id,
+          teamId: fromTeamId,
+          playerId: pid,
+        })));
+      }
+  
+      return res.json({ success: true, tradeId: trade.id });
+    } catch (err) {
+      console.error("Error proposing trade:", err);
+      return res.status(500).json({ error: "Failed to propose trade" });
+    }
+  }
+
+  async function getTrades(req, res) {
+    try {
+      const trades = await db.getAllTrades();
+      return res.json(trades);
+    } catch (err) {
+      console.error("Error fetching trades:", err);
+      return res.status(500).json({ error: "Failed to fetch trades" });
+    }
+  }
+
+  async function markTradeViewed(req, res) {
+    const { id } = req.body; 
+    try {
+      await db.markTradeAsViewed(id);
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Failed to mark trade viewed" });
+    }
+  }
+
+  async function getTradeById(req, res) {
+    const { id } = req.params;
+  
+    try {
+      const trade = await db.getTradeById(id);
+      if (!trade) {
+        return res.status(404).json({ message: "Trade not found" });
+      }
+      res.json(trade);
+    } catch (err) {
+      console.error("Error fetching trade:", err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+  
+  // Accept a trade by ID
+  async function acceptTrade(req, res) {
+    const { id } = req.params;
+  
+    try {
+      const updatedTrade = await db.acceptTrade(id);
+      if (!updatedTrade) {
+        return res.status(404).json({ message: "Trade not found or cannot be accepted" });
+      }
+      res.json({ message: "Trade accepted", trade: updatedTrade });
+    } catch (err) {
+      console.error("Error accepting trade:", err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+  
+  // Decline a trade by ID
+  async function declineTrade(req, res) {
+    const { id } = req.params;
+  
+    try {
+      const updatedTrade = await db.declineTrade(id);
+      if (!updatedTrade) {
+        return res.status(404).json({ message: "Trade not found or cannot be declined" });
+      }
+      res.json({ message: "Trade declined", trade: updatedTrade });
+    } catch (err) {
+      console.error("Error declining trade:", err);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+
+  async function tradeVote(req, res) {
+    try {
+      const { tradeId, teamId, approved } = req.body;
+  
+      if (!tradeId || !teamId || typeof approved !== "boolean") {
+        return res.status(400).json({ error: "Missing or invalid fields" });
+      }
+  
+      // Cast or update vote
+      const vote = await db.castTradeVote(tradeId, teamId, approved);
+    
+      return res.status(200).json({
+        message: "Vote recorded successfully",
+        vote,
+      });
+    } catch (err) {
+      console.error("Error recording trade vote:", err);
+      res.status(500).json({ error: "Failed to record trade vote" });
+    }
+  }
+
   module.exports = {
     createTeam, 
     getTeams, 
@@ -184,5 +356,12 @@ async function createTeam(req, res) {
     getTeamRanks,
     getPriorYears,
     getSpecificYear,
+    proposeTrade,
+    getTrades,
+    markTradeViewed,
+    getTradeById,
+    acceptTrade,
+    declineTrade,
+    tradeVote,
   };
 

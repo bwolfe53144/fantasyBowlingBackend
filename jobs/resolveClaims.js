@@ -7,7 +7,8 @@ async function resolveExpiredClaims() {
 
   const expiredClaims = await prisma.playerClaim.findMany({
     where: {
-      createdAt: { lte: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },      resolved: false,
+      createdAt: { lte: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+      resolved: false,
     },
     include: {
       claimants: {
@@ -23,7 +24,6 @@ async function resolveExpiredClaims() {
 
   console.log(`Found ${expiredClaims.length} expired claims`);
 
-  // Track dropped players in this run
   const droppedPlayerIds = new Set();
 
   for (const claim of expiredClaims) {
@@ -66,6 +66,7 @@ async function resolveExpiredClaims() {
         },
       });
 
+      // Drop player if needed
       if (winner.dropPlayerId) {
         const droppedPlayer = await prisma.player.findUnique({
           where: { id: winner.dropPlayerId },
@@ -74,38 +75,54 @@ async function resolveExpiredClaims() {
         if (droppedPlayer) {
           const { unlockedWeeks } = await playerdb.getUnlockedWeeks();
 
-          // Drop player
           await playerdb.dropPlayer(droppedPlayer.id, winner.user.team.id);
-
-          // Clear roster only for unlocked weeks
-          await playerdb.clearPlayerRosters(
-            droppedPlayer.id,
-            winner.user.team.id,
-            unlockedWeeks
-          );
+          await playerdb.clearPlayerRosters(droppedPlayer.id, winner.user.team.id, unlockedWeeks);
 
           console.log(`Dropped player ${droppedPlayer.name} from team ${winner.user.team.name}`);
 
-          // Add to dropped set to prevent other claims using this player
           droppedPlayerIds.add(droppedPlayer.id);
 
-          // Delete all other claims (excluding current claim) that include this dropped player
-          const otherClaimsWithDroppedPlayer = await prisma.playerClaim.findMany({
+          // Delete other claims involving this dropped player
+          const otherClaims = await prisma.playerClaim.findMany({
             where: {
               id: { not: claim.id },
-              claimants: {
-                some: { dropPlayerId: droppedPlayer.id },
-              },
+              claimants: { some: { dropPlayerId: droppedPlayer.id } },
             },
             include: { claimants: true, player: true },
           });
 
-          for (const c of otherClaimsWithDroppedPlayer) {
+          for (const c of otherClaims) {
             await prisma.claimant.deleteMany({ where: { claimId: c.id } });
             await prisma.playerClaim.delete({ where: { id: c.id } });
             console.log(
               `Removed claim ${c.id} for ${c.player.name} because it included dropped player ${droppedPlayer.name}`
             );
+          }
+
+          // Cancel pending trades involving dropped player
+          const pendingTrades = await prisma.trade.findMany({
+            where: {
+              status: { not: "ACCEPTED" },
+              OR: [
+                { players: { some: { playerId: droppedPlayer.id } } },
+                { drops: { some: { playerId: droppedPlayer.id } } },
+              ],
+            },
+            include: {
+              players: true,
+              drops: true,
+            },
+          });
+
+          for (const trade of pendingTrades) {
+            // Delete TradePlayer and TradeDrop entries
+            await prisma.tradePlayer.deleteMany({ where: { tradeId: trade.id } });
+            await prisma.tradeDrop.deleteMany({ where: { tradeId: trade.id } });
+
+            // Delete the trade itself
+            await prisma.trade.delete({ where: { id: trade.id } });
+
+            console.log(`Cancelled pending trade ${trade.id} involving dropped player ${droppedPlayer.name}`);
           }
         }
       }
