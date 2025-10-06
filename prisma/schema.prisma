@@ -54,7 +54,10 @@ model Team {
   rosters        Roster[]            @relation("TeamRosters")
   owner          User?               @relation(fields: [ownerId], references: [id])
   priorYearStandings PriorYearStanding[] @relation("TeamPriorYearStandings")
-
+  tradesFrom Trade[]     @relation("TradesFromTeam")
+  tradesTo   Trade[]     @relation("TradesToTeam")
+  tradeVotes TradeVote[] @relation("TeamTradeVotes")
+  tradeDrops TradeDrop[] @relation("TradeDropsForTeam")
 }
 
 model Player {
@@ -80,6 +83,9 @@ model Player {
   survivorUsages SurvivorUsedPlayer[]
   weekLineups    SurvivorWeekLineup[]
   weekScores     WeekScore[]
+
+  tradePlayers TradePlayer[] @relation("PlayerTradePlayers")
+  tradeDrops   TradeDrop[]   @relation("PlayerTradeDrops")
 
   @@unique([name, league])
 }
@@ -136,12 +142,12 @@ model WeekScore {
 model PlayerTransaction {
   id         String   @id @default(uuid())
   action     String
-  playerId   String
-  playerName String
+  playerId   String?
+  playerName String?
   teamId     String
   teamName   String
   timestamp  DateTime @default(now())
-  player     Player   @relation(fields: [playerId], references: [id])
+  player     Player?  @relation(fields: [playerId], references: [id])
   team       Team     @relation(fields: [teamId], references: [id])
 }
 
@@ -353,3 +359,77 @@ enum UserRole {
   MEMBER
   NEW
 }
+
+// === Trades ===
+model Trade {
+  id         String      @id @default(uuid())
+  fromTeamId String
+  toTeamId   String
+  status     TradeStatus @default(PENDING)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  fromTeam Team @relation("TradesFromTeam", fields: [fromTeamId], references: [id])
+  toTeam   Team @relation("TradesToTeam",   fields: [toTeamId],   references: [id])
+
+  players TradePlayer[]
+  drops   TradeDrop[]
+  votes   TradeVote[]
+
+  @@index([fromTeamId])
+  @@index([toTeamId])
+}
+
+model TradePlayer {
+  id       String   @id @default(uuid())
+  tradeId  String
+  playerId String
+  role     TradeRole
+
+  trade  Trade  @relation(fields: [tradeId], references: [id])
+  // Explicit relation name to match Player.tradePlayers
+  player Player @relation("PlayerTradePlayers", fields: [playerId], references: [id])
+
+  @@unique([tradeId, playerId])
+}
+
+model TradeDrop {
+  id       String @id @default(uuid())
+  tradeId  String
+  teamId   String
+  playerId String
+
+  trade  Trade  @relation(fields: [tradeId], references: [id])
+  // Named relation so Team can reference its drops
+  team   Team   @relation("TradeDropsForTeam", fields: [teamId], references: [id])
+  // optional explicit name for clarity (not strictly required unless you have multiple Player<->TradeDrop relations)
+  player Player @relation("PlayerTradeDrops", fields: [playerId], references: [id])
+
+  @@unique([tradeId, teamId, playerId])
+}
+
+model TradeVote {
+  id        String   @id @default(uuid())
+  tradeId   String
+  teamId    String
+  approved  Boolean
+  createdAt DateTime @default(now())
+
+  trade Trade @relation(fields: [tradeId], references: [id])
+  team  Team  @relation("TeamTradeVotes", fields: [teamId], references: [id])
+
+  @@unique([tradeId, teamId])
+}
+
+// === Enums ===
+enum TradeStatus {
+  PENDING
+  ACCEPTED
+  VIEWED
+}
+
+enum TradeRole {
+  OFFERED
+  REQUESTED
+}
+
