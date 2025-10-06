@@ -380,8 +380,8 @@ async function getTeams() {
     });
   }
   
-  async function acceptTrade(id) {
-    console.log("Accepting trade with ID:", id);
+  async function acceptTrade(id, dropPlayerId = null) {
+    console.log("Accepting trade with ID:", id, "Drop player ID:", dropPlayerId);
   
     // Fetch the trade with all related data
     const trade = await prisma.trade.findUnique({
@@ -394,11 +394,15 @@ async function getTeams() {
   
     if (!trade) return null; // trade not found
   
-    // Collect all involved player IDs (traded + dropped)
+    // Collect all involved player IDs (traded + dropped + optional dropPlayerId)
     const playerIds = [
       ...(trade.players?.map((p) => p.playerId) || []),
       ...(trade.drops?.map((d) => d.playerId) || []),
     ];
+  
+    if (dropPlayerId) {
+      playerIds.push(dropPlayerId);
+    }
   
     return prisma.$transaction(async (prisma) => {
       // 1️⃣ Mark this trade as accepted
@@ -453,6 +457,22 @@ async function getTeams() {
           // Then delete the claims
           await prisma.playerClaim.deleteMany({
             where: { id: { in: claimIds } },
+          });
+        }
+      }
+  
+      // 5️⃣ If a dropPlayerId was provided, add a drop entry for it
+      if (dropPlayerId) {
+        const playerToDrop = await prisma.player.findUnique({
+          where: { id: dropPlayerId },
+        });
+        if (playerToDrop) {
+          await prisma.tradeDrop.create({
+            data: {
+              tradeId: id,
+              playerId: dropPlayerId,
+              teamId: playerToDrop.teamId,
+            },
           });
         }
       }

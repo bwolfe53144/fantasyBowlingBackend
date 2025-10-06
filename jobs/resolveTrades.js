@@ -8,10 +8,13 @@ const MIKE_TS_TEAM_ID = "e113163f-6e13-4a05-9e88-a22c832516db";
 async function resolveTrades() {
   console.log("Resolving accepted trades...");
 
+  // 24-hour buffer
+  const bufferTime = 24 * 60 * 60 * 1000;
+
   const acceptedTrades = await prisma.trade.findMany({
     where: {
       status: "ACCEPTED",
-      updatedAt: { lte: new Date(Date.now() - 1000) }, // 1 second buffer
+      updatedAt: { lte: new Date(Date.now() - bufferTime) },
     },
     include: {
       players: { include: { player: true } },
@@ -34,7 +37,6 @@ async function resolveTrades() {
       }, 0);
 
       let vetoCount = trade.votes.filter(v => !v.approved).length;
-      const approvedCount = trade.votes.filter(v => v.approved).length;
 
       // Extra veto weighting for special teams
       for (const specialId of [MY_TEAM_ID, MIKE_TS_TEAM_ID]) {
@@ -47,24 +49,21 @@ async function resolveTrades() {
       if (isVetoed) {
         console.log(`Trade ${trade.id} vetoed by votes`);
 
-        // Build descriptive string of players traded
         const playerNames = trade.players
           .map(tp => tp.player?.name || "Unknown Player")
           .join(" for ");
         const vetoMessage = `Trade vetoed between ${trade.fromTeam.name} and ${trade.toTeam.name}: ${playerNames}`;
 
-        // Log just one transaction for the veto
         await prisma.playerTransaction.create({
           data: {
             action: vetoMessage,
             playerId: null,
             playerName: null,
-            teamId: trade.fromTeamId, // associate with one team or pick neutral teamId
+            teamId: trade.fromTeamId,
             teamName: `${trade.fromTeam.name} & ${trade.toTeam.name}`,
           },
         });
       } else {
-        // Get unlocked weeks once per trade
         const { unlockedWeeks } = await playerdb.getUnlockedWeeks();
 
         // Move players
@@ -72,7 +71,6 @@ async function resolveTrades() {
           const oldTeamId = tp.player.teamId;
           const newTeamId = tp.role === "OFFERED" ? trade.toTeamId : trade.fromTeamId;
 
-          // Update player's team
           await prisma.player.update({
             where: { id: tp.playerId },
             data: { teamId: newTeamId },
@@ -101,19 +99,19 @@ async function resolveTrades() {
               },
             });
 
-            // Clear old team's roster
             await playerdb.clearPlayerRosters(tp.playerId, oldTeamId, unlockedWeeks);
           }
         }
 
-        // Handle drops
+        // Handle drops (skip any player already traded above)
         for (const drop of trade.drops) {
+          if (trade.players.some(tp => tp.playerId === drop.playerId)) continue;
+
           const oldTeamId = drop.teamId;
 
           await playerdb.dropPlayer(drop.playerId, oldTeamId);
           await playerdb.clearPlayerRosters(drop.playerId, oldTeamId, unlockedWeeks);
 
-          // Log drop transaction
           await prisma.playerTransaction.create({
             data: {
               action: "dropped",
@@ -140,4 +138,5 @@ async function resolveTrades() {
 }
 
 module.exports = resolveTrades;
+
 
