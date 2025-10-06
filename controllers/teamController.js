@@ -293,12 +293,16 @@ async function createTeam(req, res) {
   // Accept a trade by ID
   async function acceptTrade(req, res) {
     const { id } = req.params;
+    const { dropPlayerId } = req.body; // optional
   
     try {
-      const updatedTrade = await db.acceptTrade(id);
+      // Pass dropPlayerId directly to the DB layer
+      const updatedTrade = await db.acceptTrade(id, dropPlayerId);
+  
       if (!updatedTrade) {
         return res.status(404).json({ message: "Trade not found or cannot be accepted" });
       }
+  
       res.json({ message: "Trade accepted", trade: updatedTrade });
     } catch (err) {
       console.error("Error accepting trade:", err);
