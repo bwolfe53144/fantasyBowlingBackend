@@ -80,11 +80,13 @@ async function deletePlayerClaim(claimId) {
 async function getAllClaims() {
   const claims = await prisma.playerClaim.findMany({
     include: {
-      player: true,
+      player: true, // will include all scalar fields like 'league', 'name', etc.
       claimants: {
         include: {
           user: {
-            include: { team: true },
+            include: {
+              team: true,
+            },
           },
         },
       },
