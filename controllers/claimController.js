@@ -99,20 +99,22 @@ async function viewMyClaims(req, res) {
     const myClaimedPlayers = await db.getClaimsByUserId(req.user.id);
 
     const processedClaims = myClaimedPlayers.map((claim) => {
-      const teams = (claim.claimants || [])
-        .map(c => ({
-          id: c.user?.team?.id,
-          name: c.user?.team?.name,
-        }))
-        .filter(t => t.id);
+      const teams = (claim.teams || []).map((t) => ({
+        id: t.id,
+        name: t.name,
+      }));
 
       return {
-        playerName: claim.player?.name || "Unknown",
-        playerId: claim.player?.id || null,
-        league: claim.player?.league || "Unknown",
+        playerName: claim.playerName || "Unknown",
+        playerId: claim.playerId || null,
+        league: claim.league || "Unknown",
         teams,
-        expiresAt: claim.expiresAt?.toISOString() || null,
-        timeLeft: claim.expiresAt ? getTimeLeft(claim.expiresAt) : "Expired",
+        expiresAt: claim.expiresAt
+          ? claim.expiresAt.toISOString()
+          : null,
+        timeLeft: claim.expiresAt
+          ? getTimeLeft(claim.expiresAt)
+          : "Expired",
       };
     });
 
