@@ -6,7 +6,9 @@ require("dotenv").config();
 const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
 const axios = require('axios');
-const { format, utcToZonedTime } = require("date-fns-tz");
+const { format } = require("date-fns");
+const dateFnsTz = require("date-fns-tz");
+const utcToZonedTime = dateFnsTz.utcToZonedTime;
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -87,14 +89,17 @@ async function getTransactions(req, res) {
     const timeZone = "America/Chicago";
 
     const formatted = transactions.map((tx) => {
-      const chicagoTime = utcToZonedTime(tx.timestamp, timeZone);
+      const chicagoTime = tx.timestamp
+        ? utcToZonedTime(tx.timestamp, "America/Chicago")
+        : null;
+    
       return {
         id: tx.id,
         playerName: tx.player?.name || "Unknown Player",
         teamName: tx.team?.name || "Unknown Team",
         action: tx.action,
-        timestamp: tx.timestamp, // keep UTC if needed
-        timestampStr: format(chicagoTime, "yyyy-MM-dd h:mm a"), // pre-formatted
+        timestamp: tx.timestamp, // keep original UTC if needed
+        timestampStr: chicagoTime ? format(chicagoTime, "yyyy-MM-dd h:mm a") : null,
       };
     });
 
