@@ -5,54 +5,47 @@ async function lockSurvivorLineups() {
   console.log("⏰ Running survivor lineup lock job...");
 
   try {
-    // Get all week locks where lockTime has passed but not completed
     const now = new Date();
-    const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
 
+    // 1️⃣ Get all locks where the lock time has passed
     const weekLocks = await prisma.weekLock.findMany({
       where: {
-        completed: "no",
-        lockTime: {
-          lte: now,  // lockTime is in the past
-          gte: threeHoursAgo,  // but not older than 3 hours ago
-        },
+        lockTime: { lte: now },
       },
+      orderBy: [{ league: "asc" }, { week: "asc" }], // oldest first per league
     });
 
     if (weekLocks.length === 0) {
-      console.log("⏳ No leagues in lock window, skipping.");
+      console.log("⏳ No leagues with past lock times, skipping.");
       return;
     }
 
-    for (const lock of weekLocks) {
-      if (lock.week <= 5) {
-        console.log(`⏭️ Skipping week ${lock.week} (no snapshot needed)`);
+    // 2️⃣ For each league, take only the *first* week that has passed
+    const firstLocks = Object.values(
+      weekLocks.reduce((acc, lock) => {
+        if (!acc[lock.league]) acc[lock.league] = lock;
+        return acc;
+      }, {})
+    );
+
+    for (const lock of firstLocks) {
+      // 3️⃣ Skip weeks that already have a snapshot
+      const existingSnapshot = await prisma.survivorWeekLineup.findFirst({
+        where: { week: lock.week, entry: { league: lock.league } },
+      });
+
+      if (existingSnapshot) {
+        console.log(`✅ ${lock.league} week ${lock.week} already has snapshots, skipping.`);
         continue;
       }
 
-      // Find all active entries for this league
+      // 4️⃣ Find all active entries for this league
       const entries = await prisma.survivorEntry.findMany({
-        where: {
-          league: lock.league,
-          eliminated: false,
-        },
+        where: { league: lock.league, eliminated: false },
       });
 
       for (const entry of entries) {
-        // Check if we already snapshotted for this week
-        const alreadySnapshot = await prisma.survivorWeekLineup.findFirst({
-          where: {
-            entryId: entry.id,
-            week: lock.week,
-          },
-        });
-
-        if (alreadySnapshot) {
-          console.log(`✅ Already snapshot for ${entry.teamName} (week ${lock.week})`);
-          continue;
-        }
-
-        // Get current lineup (may be empty or incomplete)
+        // Get current lineup for the entry
         const lineup = await prisma.survivorPlayer.findMany({
           where: { entryId: entry.id },
           orderBy: { rank: "asc" },
@@ -65,16 +58,14 @@ async function lockSurvivorLineups() {
           rank: player.rank,
         }));
 
-        // Create snapshot even if empty
         if (snapshotData.length > 0) {
           await prisma.survivorWeekLineup.createMany({
             data: snapshotData,
+            skipDuplicates: true,
           });
-          console.log(`✅ Snapshotted lineup for ${entry.teamName} (count: ${lineup.length}), week ${lock.week}`);
+          console.log(`✅ Snapshotted lineup for ${entry.teamName} (${lineup.length}) in ${lock.league} week ${lock.week}`);
         } else {
-          // If no players, optionally create a placeholder entry or just log
-          console.log(`⚠️ No players for ${entry.teamName}, empty lineup snapshotted (no player records).`);
-          // You could optionally insert a placeholder record in survivorWeekLineup here if needed
+          console.log(`⚠️ No players for ${entry.teamName} — skipping empty lineup.`);
         }
       }
     }
@@ -82,6 +73,8 @@ async function lockSurvivorLineups() {
     console.log("🏁 Survivor lineup lock job finished.");
   } catch (error) {
     console.error("❌ Error in survivor lineup lock job:", error);
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
