@@ -6,7 +6,6 @@ require("dotenv").config();
 const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
 const axios = require('axios');
-const { utcToZonedTime, format: tzFormat } = require("date-fns-tz");
 
 
 cloudinary.config({
@@ -86,19 +85,29 @@ async function getTransactions(req, res) {
     const totalPages = Math.ceil(totalCount / pageSize);
 
     const timeZone = "America/Chicago";
-
+    const dateFnsTz = require("date-fns-tz"); // require locally inside function
     const formatted = transactions.map((tx) => {
-      // Convert UTC timestamp to Chicago time
-      const chicagoTime = tx.timestamp ? utcToZonedTime(tx.timestamp, timeZone) : null;
-      const timestampStr = chicagoTime ? tzFormat(chicagoTime, "yyyy-MM-dd h:mm a") : null;
+      let timestampStr = null;
+
+      if (tx.timestamp) {
+        if (dateFnsTz && typeof dateFnsTz.utcToZonedTime === "function") {
+          // Convert to Chicago time
+          const chicagoTime = dateFnsTz.utcToZonedTime(tx.timestamp, timeZone);
+          timestampStr = dateFnsTz.format(chicagoTime, "yyyy-MM-dd h:mm a");
+        } else {
+          // fallback: UTC string
+          timestampStr = new Date(tx.timestamp).toISOString();
+          console.warn("utcToZonedTime not available, using UTC timestamp");
+        }
+      }
 
       return {
         id: tx.id,
         playerName: tx.player?.name || "Unknown Player",
         teamName: tx.team?.name || "Unknown Team",
         action: tx.action,
-        timestamp: tx.timestamp,      
-        timestampStr,                  
+        timestamp: tx.timestamp,
+        timestampStr,
       };
     });
 
