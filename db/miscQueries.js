@@ -83,24 +83,7 @@ async function getPaginatedTransactions(skip, take) {
       },
     }),
   ]);
-
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Chicago", // Central Time
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-
-  const transactionsCT = transactions.map(tx => ({
-    ...tx,
-    timestamp: formatter.format(new Date(tx.timestamp)),
-  }));
-
-  return { totalCount, transactions: transactionsCT };
+  return { totalCount, transactions };
 }
 
 // Matchup-related
