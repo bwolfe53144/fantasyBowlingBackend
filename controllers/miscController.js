@@ -7,7 +7,6 @@ const cloudinary = require('cloudinary').v2;
 const fs = require('fs');
 const axios = require('axios');
 
-
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -84,32 +83,13 @@ async function getTransactions(req, res) {
     const { totalCount, transactions } = await db.getPaginatedTransactions(skip, pageSize);
     const totalPages = Math.ceil(totalCount / pageSize);
 
-    const timeZone = "America/Chicago";
-    const dateFnsTz = require("date-fns-tz"); // require locally inside function
-    const formatted = transactions.map((tx) => {
-      let timestampStr = null;
-
-      if (tx.timestamp) {
-        if (dateFnsTz && typeof dateFnsTz.utcToZonedTime === "function") {
-          // Convert to Chicago time
-          const chicagoTime = dateFnsTz.utcToZonedTime(tx.timestamp, timeZone);
-          timestampStr = dateFnsTz.format(chicagoTime, "yyyy-MM-dd h:mm a");
-        } else {
-          // fallback: UTC string
-          timestampStr = new Date(tx.timestamp).toISOString();
-          console.warn("utcToZonedTime not available, using UTC timestamp");
-        }
-      }
-
-      return {
-        id: tx.id,
-        playerName: tx.player?.name || "Unknown Player",
-        teamName: tx.team?.name || "Unknown Team",
-        action: tx.action,
-        timestamp: tx.timestamp,
-        timestampStr,
-      };
-    });
+    const formatted = transactions.map((tx) => ({
+      id: tx.id,
+      playerName: tx.player?.name || "Unknown Player",
+      teamName: tx.team?.name || "Unknown Team",
+      action: tx.action,
+      timestamp: tx.timestamp,
+    }));
 
     res.status(200).json({
       transactions: formatted,
