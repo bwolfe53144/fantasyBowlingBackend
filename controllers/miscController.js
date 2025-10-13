@@ -8,7 +8,6 @@ const fs = require('fs');
 const axios = require('axios');
 const { format } = require("date-fns");
 const dateFnsTz = require("date-fns-tz");
-const utcToZonedTime = dateFnsTz.utcToZonedTime;
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -86,19 +85,15 @@ async function getTransactions(req, res) {
     const { totalCount, transactions } = await db.getPaginatedTransactions(skip, pageSize);
     const totalPages = Math.ceil(totalCount / pageSize);
 
-    const timeZone = "America/Chicago";
-
     const formatted = transactions.map((tx) => {
-      const chicagoTime = tx.timestamp
-        ? utcToZonedTime(tx.timestamp, "America/Chicago")
-        : null;
-    
+      const chicagoTime = tx.timestamp ? dfnsTz.utcToZonedTime(tx.timestamp, "America/Chicago") : null;
+
       return {
         id: tx.id,
         playerName: tx.player?.name || "Unknown Player",
         teamName: tx.team?.name || "Unknown Team",
         action: tx.action,
-        timestamp: tx.timestamp, // keep original UTC if needed
+        timestamp: tx.timestamp,
         timestampStr: chicagoTime ? format(chicagoTime, "yyyy-MM-dd h:mm a") : null,
       };
     });
