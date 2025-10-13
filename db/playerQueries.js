@@ -122,7 +122,6 @@ async function dropPlayer(playerId, teamId) {
           teamId,
           teamName: team.name,
           action: "drop",
-          createdAt: new Date(),
         },
       });
     });

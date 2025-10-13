@@ -63,7 +63,6 @@ async function resolveExpiredClaims() {
           teamId: winner.user.team.id,
           teamName: winner.user.team.name,
           action: "add",
-          createdAt: new Date(),
         },
       });
 
