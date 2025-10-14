@@ -1,27 +1,31 @@
-require("dotenv").config(); 
+require("dotenv").config();
 const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
+const nodemailer = require("nodemailer");
 const db = require("../db/authQueries");
-const { Resend } = require("resend");
-const resend = new Resend(process.env.RESEND_API_KEY);
-const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL;
 
+const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL;
 const JWT_SECRET = process.env.JWT_SECRET;
 
+// ✅ Create reusable email transporter for Brevo SMTP
 const transporter = nodemailer.createTransport({
-  host: "smtp.mail.yahoo.com",
-  port: 465,
-  secure: true,
+  host: process.env.EMAIL_HOST,
+  port: parseInt(process.env.EMAIL_PORT, 10),
+  secure: false, // use TLS
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false, // avoids certain TLS errors
   },
 });
 
+// --- PASSPORT STRATEGY ---
 passport.use(
   new LocalStrategy(async (username, password, done) => {
     try {
@@ -43,10 +47,7 @@ passport.use(
   })
 );
 
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
-
+passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser(async (id, done) => {
   try {
     const user = await db.findUser(id);
@@ -56,49 +57,45 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
+// --- SIGNUP ---
 async function signup(req, res) {
   const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
   try {
     const { firstname, lastname, username, email, password, confPassword } = req.body;
 
-    // Check for existing username/email if email is provided
     const checkInfo = await db.checkUsernameEmail(username, email || null);
-    if (checkInfo) {
-      return res.status(400).json({ error: "Username or email already exists" });
-    }
+    if (checkInfo) return res.status(400).json({ error: "Username or email already exists" });
 
-    if (password !== confPassword) {
+    if (password !== confPassword)
       return res.status(400).json({ error: "Passwords do not match" });
-    }
 
     const newFirstname = firstname.charAt(0).toUpperCase() + firstname.slice(1).toLowerCase();
     const newLastname = lastname.charAt(0).toUpperCase() + lastname.slice(1).toLowerCase();
 
     const checkName = await db.checkName(newFirstname, newLastname);
-    if (checkName) {
+    if (checkName)
       return res.status(400).json({ error: "First and last name combination already in use" });
-    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     await db.addUser(newFirstname, newLastname, req.body, hashedPassword);
 
-    // Send email notification to superadmin
-    if (process.env.SUPERADMIN_EMAIL) {
+    // Notify superadmin
+    if (SUPERADMIN_EMAIL) {
       try {
-        await resend.emails.send({
-          from: "Fantasy Bowling <noreply@fantasybowling.com>",
-          to: process.env.SUPERADMIN_EMAIL,
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM,
+          to: SUPERADMIN_EMAIL,
           subject: "New User Registration",
-          text: `A new user has registered:\n\nName: ${newFirstname} ${newLastname}\nUsername: ${username}` +
-                (email ? `\nEmail: ${email}` : ""),
+          text:
+            `A new user has registered:\n\n` +
+            `Name: ${newFirstname} ${newLastname}\nUsername: ${username}` +
+            (email ? `\nEmail: ${email}` : ""),
         });
-        console.log("Registration email sent via Resend.");
-      } catch (error) {
-        console.error("Error sending registration email:", error);
+        console.log("✅ Registration email sent via Brevo SMTP");
+      } catch (err) {
+        console.error("❌ Error sending registration email:", err);
       }
     }
 
@@ -109,6 +106,7 @@ async function signup(req, res) {
   }
 }
 
+// --- LOGIN ---
 async function login(req, res) {
   const { username, password } = req.body;
 
@@ -126,9 +124,9 @@ async function login(req, res) {
   }
 }
 
+// --- GET USER ---
 async function getUser(req, res) {
   const authHeader = req.headers.authorization;
-
   if (!authHeader) return res.json(null);
 
   const token = authHeader.split(" ")[1];
@@ -136,25 +134,22 @@ async function getUser(req, res) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     const userId = decoded.userId;
-
     if (!userId) return res.json(null);
 
     const user = await db.findUser(userId);
-
     if (!user) return res.json(null);
 
-    // Sort players by numeric position
-    if (user.team && user.team.players) {
+    // Sort players by position
+    if (user.team?.players) {
       user.team.players.sort((a, b) => {
         const posA = isNaN(parseInt(a.position)) ? Infinity : parseInt(a.position);
         const posB = isNaN(parseInt(b.position)) ? Infinity : parseInt(b.position);
         return posA - posB;
       });
 
-      // Serialize nested tradePlayers for frontend
-      user.team.players = user.team.players.map(player => ({
+      user.team.players = user.team.players.map((player) => ({
         ...player,
-        tradePlayers: player.tradePlayers.map(tp => ({
+        tradePlayers: player.tradePlayers.map((tp) => ({
           id: tp.id,
           playerId: tp.playerId,
           tradeId: tp.tradeId,
@@ -177,19 +172,17 @@ async function getUser(req, res) {
   }
 }
 
+// --- FORGOT PASSWORD ---
 async function forgotPassword(req, res) {
   const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ error: "Email is required." });
-  }
+  if (!email) return res.status(400).json({ error: "Email is required." });
 
   try {
     const user = await db.getUserByEmail(email);
-
     if (!user) {
-      // Avoid revealing if email exists
-      return res.status(200).json({ message: "If that email is in our system, we sent a reset link." });
+      return res.status(200).json({
+        message: "If that email is in our system, we sent a reset link.",
+      });
     }
 
     const resetToken = crypto.randomBytes(32).toString("hex");
@@ -201,58 +194,71 @@ async function forgotPassword(req, res) {
     const resetURL = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
     await sendPasswordResetEmail(user.email, resetURL);
 
-    return res.status(200).json({ message: "If that email is in our system, we sent a reset link." });
+    res.status(200).json({
+      message: "If that email is in our system, we sent a reset link.",
+    });
   } catch (error) {
     console.error("Error in forgotPassword:", error);
     return res.status(500).json({ error: "Internal server error." });
   }
 }
 
+// --- SEND PASSWORD RESET EMAIL ---
 async function sendPasswordResetEmail(to, resetURL) {
   try {
-    await resend.emails.send({
-      from: "Fantasy Bowling <noreply@fantasybowling.com>",
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
       to,
       subject: "Password Reset Request",
       html: `<p>You requested a password reset.</p>
              <p>Click <a href="${resetURL}">here</a> to reset your password. This link expires in 1 hour.</p>`,
     });
-    console.log(`Password reset email sent to ${to}`);
+    console.log(`✅ Password reset email sent to ${to}`);
   } catch (error) {
-    console.error("Error sending password reset email:", error);
+    console.error("❌ Error sending password reset email:", error);
   }
 }
 
+// --- RESET PASSWORD ---
 async function resetPassword(req, res) {
   const { token } = req.params;
   const { password, confirmPassword } = req.body;
 
-  if (!password || !confirmPassword) {
+  if (!password || !confirmPassword)
     return res.status(400).json({ error: "Password and confirm password are required." });
-  }
 
-  if (password !== confirmPassword) {
+  if (password !== confirmPassword)
     return res.status(400).json({ error: "Passwords do not match." });
-  }
 
   try {
-    // Hash token to compare
+    // Hash the token from the URL to match database
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    console.log("Received token:", token);
+    console.log("Hashed token:", hashedToken);
 
-    // Find user by reset token and make sure not expired
+    // Look up the user by hashed token
     const user = await db.getUserByResetToken(hashedToken);
+    console.log("User fetched from DB:", user);
 
-    if (!user || user.resetPasswordExpires < new Date()) {
+    if (!user) {
+      console.log("No user found with this token");
       return res.status(400).json({ error: "Token is invalid or has expired." });
     }
 
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    console.log("Token expires at:", user.resetPasswordExpires);
+    console.log("Current time:", new Date());
 
-    // Update user: set new password, clear token fields
+    if (user.resetPasswordExpires < new Date()) {
+      console.log("Token has expired");
+      return res.status(400).json({ error: "Token is invalid or has expired." });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
     await db.updatePasswordAndClearResetToken(user.id, hashedPassword);
 
-    res.status(200).json({ message: "Password has been reset successfully. You can now log in." });
+    res.status(200).json({
+      message: "Password has been reset successfully. You can now log in.",
+    });
   } catch (error) {
     console.error("Error in resetPassword:", error);
     res.status(500).json({ error: "Internal server error." });
@@ -260,10 +266,10 @@ async function resetPassword(req, res) {
 }
 
 module.exports = {
-  signup, 
-  login, 
+  signup,
+  login,
   getUser,
-  forgotPassword, 
+  forgotPassword,
   resetPassword,
 };
 

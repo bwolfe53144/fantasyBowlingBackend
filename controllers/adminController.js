@@ -1,7 +1,20 @@
-require("dotenv").config(); 
+require("dotenv").config();
 const db = require("../db/adminQueries");
-const { Resend } = require("resend");
-const resend = new Resend(process.env.RESEND_API_KEY);
+const nodemailer = require("nodemailer");
+
+// Create email transporter for Brevo (Sendinblue)
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST, // smtp-relay.brevo.com
+  port: process.env.EMAIL_PORT || 587,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false, // avoids certain TLS errors
+  },
+});
 
 // Player Management
 async function clearPlayers(req, res) {
@@ -169,24 +182,37 @@ async function changeRole(req, res) {
   }
 }
 
+// 📨 Email via Brevo
 async function sendStatsEmail(req, res) {
+  console.log("Gmail SMTP active?", !!process.env.EMAIL_USER);
+
   try {
     const users = await db.getEmailSubscribedUsers();
-
     if (!users || users.length === 0) {
       return res.status(200).json({ message: "No users subscribed to email updates." });
     }
 
-    const fromAddress = "Fantasy Bowling League <no-reply@fantasybowling.com>";
+    const fromAddress = process.env.EMAIL_FROM || "Fantasy Bowling League <bwolfe53144@gmail.com>";
+    const replyTo = process.env.EMAIL_REPLY_TO || "bwolfe53144@gmail.com";
 
-    // Use Promise.all for parallel sending
+    // Compose email content
+    const subject = "Fantasy Bowling Stats Updated";
+    const textBody = "Stats for fantasy bowling have been updated. Check your team and see how you did!";
+    const htmlBody = `
+      <p>Stats for fantasy bowling have been updated.</p>
+      <p>Check your team and see how you did!</p>
+      <p>— Fantasy Bowling League</p>
+    `;
+
     await Promise.all(
       users.map((user) =>
-        resend.emails.send({
+        transporter.sendMail({
           from: fromAddress,
           to: user.email,
-          subject: "Fantasy Bowling Stats Updated",
-          text: "Stats for fantasy bowling have been updated. Check your team and see how you did!",
+          replyTo,
+          subject,
+          text: textBody,
+          html: htmlBody,
         })
       )
     );
@@ -195,14 +221,14 @@ async function sendStatsEmail(req, res) {
   } catch (error) {
     console.error("Error sending stats emails:", error);
 
-    // Log detailed error info if Resend fails
     if (error?.response?.data) {
-      console.error("Resend error response:", error.response.data);
+      console.error("SMTP response error:", error.response.data);
     }
 
     res.status(500).json({ error: "Failed to send stats update emails." });
   }
 }
+
 
 async function assignBadge(req, res) {
   const { playerId, name, year, description, iconUrl, rank } = req.body;
@@ -244,7 +270,6 @@ async function addPriorYearStandings(req, res) {
     captainUserId,
   } = req.body;
 
-  // Validate required fields
   if (
     !year || 
     !place || 
@@ -283,17 +308,17 @@ async function addPriorYearStandings(req, res) {
 }
 
 module.exports = {
-  clearPlayers, 
-  removePlayer, 
-  assignPlayerToTeam, 
-  changePosition, 
-  deleteTeam, 
-  adminProcessClaim, 
-  deleteTransactions, 
-  clearWeekscores, 
-  submitLockTimes, 
-  generateSchedule, 
-  changeRole, 
+  clearPlayers,
+  removePlayer,
+  assignPlayerToTeam,
+  changePosition,
+  deleteTeam,
+  adminProcessClaim,
+  deleteTransactions,
+  clearWeekscores,
+  submitLockTimes,
+  generateSchedule,
+  changeRole,
   sendStatsEmail,
   assignBadge,
   addPriorYearStandings,
