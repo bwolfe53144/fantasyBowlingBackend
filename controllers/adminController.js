@@ -1,7 +1,7 @@
 require("dotenv").config(); 
 const db = require("../db/adminQueries");
-const nodemailer = require("nodemailer");
-
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Player Management
 async function clearPlayers(req, res) {
@@ -173,34 +173,33 @@ async function sendStatsEmail(req, res) {
   try {
     const users = await db.getEmailSubscribedUsers();
 
-    if (users.length === 0) {
+    if (!users || users.length === 0) {
       return res.status(200).json({ message: "No users subscribed to email updates." });
     }
 
-    const transporter = nodemailer.createTransport({
-      service: "yahoo",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+    const fromAddress = "Fantasy Bowling League <no-reply@fantasybowling.com>";
 
-    const mailOptions = {
-      from: `"Fantasy Bowling League" <${process.env.SMTP_USER}>`,
-      subject: "Fantasy Bowling Stats Updated",
-      text: "Stats for fantasy bowling have been updated. Check your team and see how you did!",
-    };
-
-    for (const user of users) {
-      await transporter.sendMail({
-        ...mailOptions,
-        to: user.email,
-      });
-    }
+    // Use Promise.all for parallel sending
+    await Promise.all(
+      users.map((user) =>
+        resend.emails.send({
+          from: fromAddress,
+          to: user.email,
+          subject: "Fantasy Bowling Stats Updated",
+          text: "Stats for fantasy bowling have been updated. Check your team and see how you did!",
+        })
+      )
+    );
 
     res.status(200).json({ message: `Emails sent to ${users.length} users.` });
   } catch (error) {
     console.error("Error sending stats emails:", error);
+
+    // Log detailed error info if Resend fails
+    if (error?.response?.data) {
+      console.error("Resend error response:", error.response.data);
+    }
+
     res.status(500).json({ error: "Failed to send stats update emails." });
   }
 }

@@ -20,7 +20,6 @@
     "body-parser": "^1.20.3",
     "cloudinary": "^2.6.0",
     "cors": "^2.8.5",
-    "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "dotenv": "^16.4.7",
     "ejs": "^3.1.10",
@@ -35,6 +34,7 @@
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "pg": "^8.14.1",
+    "resend": "^6.1.2",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {

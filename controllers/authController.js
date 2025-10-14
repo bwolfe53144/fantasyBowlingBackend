@@ -6,7 +6,8 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 const db = require("../db/authQueries");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
 const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL;
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -87,21 +88,18 @@ async function signup(req, res) {
 
     // Send email notification to superadmin
     if (process.env.SUPERADMIN_EMAIL) {
-      const mailOptions = {
-        from: `"Fantasy Bowling App" <${process.env.SMTP_USER}>`,
-        to: process.env.SUPERADMIN_EMAIL,
-        subject: "New User Registration",
-        text: `A new user has registered:\n\nName: ${newFirstname} ${newLastname}\nUsername: ${username}` +
-              (email ? `\nEmail: ${email}` : ""),
-      };
-
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.error("Error sending registration email:", error);
-        } else {
-          console.log("Registration email sent:", info.response);
-        }
-      });
+      try {
+        await resend.emails.send({
+          from: "Fantasy Bowling <noreply@fantasybowling.com>",
+          to: process.env.SUPERADMIN_EMAIL,
+          subject: "New User Registration",
+          text: `A new user has registered:\n\nName: ${newFirstname} ${newLastname}\nUsername: ${username}` +
+                (email ? `\nEmail: ${email}` : ""),
+        });
+        console.log("Registration email sent via Resend.");
+      } catch (error) {
+        console.error("Error sending registration email:", error);
+      }
     }
 
     res.json({ message: "User registered successfully!" });
@@ -211,23 +209,18 @@ async function forgotPassword(req, res) {
 }
 
 async function sendPasswordResetEmail(to, resetURL) {
-  const transporter = nodemailer.createTransport({
-    service: "yahoo", // or your provider
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-
-  const mailOptions = {
-    from: process.env.SMTP_USER,
-    to,
-    subject: "Password Reset Request",
-    html: `<p>You requested a password reset.</p>
-           <p>Click <a href="${resetURL}">here</a> to reset your password. This link expires in 1 hour.</p>`,
-  };
-
-  await transporter.sendMail(mailOptions);
+  try {
+    await resend.emails.send({
+      from: "Fantasy Bowling <noreply@fantasybowling.com>",
+      to,
+      subject: "Password Reset Request",
+      html: `<p>You requested a password reset.</p>
+             <p>Click <a href="${resetURL}">here</a> to reset your password. This link expires in 1 hour.</p>`,
+    });
+    console.log(`Password reset email sent to ${to}`);
+  } catch (error) {
+    console.error("Error sending password reset email:", error);
+  }
 }
 
 async function resetPassword(req, res) {
