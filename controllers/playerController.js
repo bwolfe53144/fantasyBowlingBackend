@@ -76,6 +76,7 @@ async function getPlayers(req, res) {
         name: p.name,
         league: p.league,
         position: p.position,
+        lyAverage: p.lyAverage,
         id: p.id,
         team: p.team || null,
         weekScores: p.weekScores.map((score) => ({

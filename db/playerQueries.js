@@ -181,10 +181,12 @@ async function getPlayerWithStatsByName(playerName) {
       id: true,
       name: true,
       league: true,
+      lyAverage: true,
       position: true,
       team: {
         select: { name: true },
       },
+      lyAverage: true,
       weekScores: true,
       playerRank: true,
       badges: true,
