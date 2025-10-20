@@ -38,7 +38,7 @@ async function lockSurvivorLineups() {
       console.log(`\n🔹 Processing ${lock.league} week ${lock.week}...`);
 
       // 🧩 Skip leagues with week < 7
-      if (lock.week < 7) {
+      if (lock.week < 10) {
         console.log(`🚫 ${lock.league} week ${lock.week} is before Week 10 — skipping snapshot.`);
         totalSkipped++;
         continue;
