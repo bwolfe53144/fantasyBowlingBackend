@@ -161,7 +161,6 @@ async function getUnlockedWeeks() {
 
 async function setPlayerPositions(teamId, players) {
   const unlockedWeeks = await getUnlockedWeeks();
-  console.log(unlockedWeeks);
 
   if (!unlockedWeeks.length) {
     return { error: "All weeks are locked. Cannot set positions." };
