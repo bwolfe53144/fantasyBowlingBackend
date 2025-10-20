@@ -145,29 +145,46 @@ async function clearPlayerRosters(playerId, teamId, unlockedWeeks) {
 }
 
 async function getUnlockedWeeks() {
-  const weekLocks = await prisma.weekLock.findMany({
-    where: { lockTime: { gt: new Date() } },
-    select: { week: true },
+  const allWeekLocks = await prisma.weekLock.findMany({
+    select: { week: true, lockTime: true },
   });
 
-  if (weekLocks.length === 0) return { unlockedWeeks: [] };
+  if (allWeekLocks.length === 0) return { unlockedWeeks: [] };
 
-  // Count occurrences of each week
-  const weekCounts = {};
-  for (const w of weekLocks) {
-    weekCounts[w.week] = (weekCounts[w.week] || 0) + 1;
+  const now = new Date();
+  const weekGroups = {};
+
+  for (const { week, lockTime } of allWeekLocks) {
+    if (!weekGroups[week]) weekGroups[week] = [];
+    weekGroups[week].push(lockTime);
   }
 
-  const maxCount = Math.max(...Object.values(weekCounts));
-
-  // Return all weeks that have the max count
-  const unlockedWeeks = Object.entries(weekCounts)
-    .filter(([_, count]) => count === maxCount)
+  // Figure out unlocked weeks (all locks still in the future)
+  const unlockedWeeks = Object.entries(weekGroups)
+    .filter(([_, locks]) => locks.every(t => t > now))
     .map(([week]) => parseInt(week))
     .sort((a, b) => a - b);
 
+  // 🧩 Debug: log previous week's lock times
+  if (unlockedWeeks.length > 0) {
+    const firstUnlocked = unlockedWeeks[0];
+    const prevWeek = firstUnlocked - 1;
+
+    if (weekGroups[prevWeek]) {
+      console.log(`🕒 Previous week (${prevWeek}) lock times:`);
+      weekGroups[prevWeek].forEach((t, i) => {
+        console.log(`  [${i + 1}] ${t.toISOString()} (now: ${now.toISOString()})`);
+      });
+    } else {
+      console.log(`⚠️ No lock times found for previous week (${prevWeek})`);
+    }
+  } else {
+    console.log("⚠️ No unlocked weeks found at all");
+  }
+
   return { unlockedWeeks };
 }
+
 
 async function getPlayerWithStatsByName(playerName) {
   return await prisma.player.findMany({
