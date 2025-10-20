@@ -194,6 +194,16 @@ async function getSpecificWeekLocks(req, res) {
   }
 }
 
+async function getCurrentWeekocksByLeague(req, res) {
+  try {
+    const weekLocks = await db.findCurrentWeekLocksByLeague();
+    res.json(weekLocks);
+  } catch (error) {
+    console.error("Error fetching current week locks by league:", error);
+    res.status(500).json({ error: "Failed to fetch week locks" });
+  }
+}
+
 module.exports = {
   completeWeekLock, 
   findCompletedLeagues, 
@@ -206,4 +216,5 @@ module.exports = {
   submitWeekScore, 
   getLeagueCurrentWeek,
   getSpecificWeekLocks,
+  getCurrentWeekocksByLeague,
 };

@@ -533,6 +533,37 @@ async function getWeekLocks(week) {
   });
 }
 
+async function findCurrentWeekLocksByLeague() {
+  const now = new Date();
+
+  // Get all week locks, ordered by week ascending
+  const weekLocks = await prisma.weekLock.findMany({
+    select: {
+      league: true,
+      week: true,
+      lockTime: true,
+      completed: true,
+    },
+    orderBy: [
+      { league: "asc" },
+      { week: "asc" }
+    ],
+  });
+
+  // Group by league and pick the first lock that hasn't expired
+  const nextLocks = [];
+  const seenLeagues = new Set();
+
+  for (const lock of weekLocks) {
+    if (!seenLeagues.has(lock.league) && lock.lockTime > now) {
+      nextLocks.push(lock);
+      seenLeagues.add(lock.league);
+    }
+  }
+
+  return nextLocks;
+}
+
 module.exports = {
   completeWeekLock,
   createWeekScore,
@@ -546,4 +577,5 @@ module.exports = {
   getAllWeekScores,
   findCurrentWeekForLeague,
   getWeekLocks, 
+  findCurrentWeekLocksByLeague,
 };

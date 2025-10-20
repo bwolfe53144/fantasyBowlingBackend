@@ -4,6 +4,7 @@ const router = express.Router();
 
 // GET routes
 router.get("/api/weeklocks/completed", weekController.getCompletedWeeks);
+router.get("/api/weeklocks/currentWeekLocksByLeague", weekController.getCurrentWeekocksByLeague);
 router.get("/api/weeklocks/incomplete", weekController.getIncompleteWeeklocks);
 router.get("/findCompletedLeagues/:week", weekController.findCompletedLeagues);
 router.get("/findSpecificWeekLocks/:week", weekController.getSpecificWeekLocks);
